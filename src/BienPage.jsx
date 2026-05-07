@@ -12,8 +12,8 @@ const STANDARD_COLUMNS = [
   { id: 'nom', label: 'Bien / Nom', minWidth: 'min-w-[150px]' },
   { id: 'agence', label: 'Agence', minWidth: 'min-w-[100px]' },
   { id: 'ville', label: 'Ville', minWidth: 'min-w-[100px]' },
-  { id: 'prix', label: 'Prix', align: 'right', width: 'w-20' },
-  { id: 'surface', label: 'Surface', align: 'right', width: 'w-16' },
+  { id: 'prix', label: 'Prix', align: 'right', width: 'w-28' },
+  { id: 'surface', label: 'Surface', align: 'right', width: 'w-20' },
   { id: 'chambres', label: 'Ch.', align: 'center', width: 'w-10' },
   { id: 'terrain', label: 'Terr.', align: 'center', width: 'w-14' },
   { id: 'dpe', label: 'DPE', align: 'center', width: 'w-10' },
@@ -484,7 +484,7 @@ const BienPage = () => {
                         <div className="flex items-center justify-end gap-0.5">
                           <input 
                             type="number"
-                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-900 text-xs focus:ring-0 w-16 text-right transition-colors"
+                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-900 text-xs focus:ring-0 w-24 text-right transition-colors"
                             value={bien.prix}
                             onChange={(e) => updateBien(bien.id, 'prix', Number(e.target.value))}
                           />
@@ -498,7 +498,7 @@ const BienPage = () => {
                         <div className="flex items-center justify-end gap-0.5">
                           <input 
                             type="number"
-                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-900 text-xs focus:ring-0 w-12 text-right transition-colors"
+                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-900 text-xs focus:ring-0 w-16 text-right transition-colors"
                             value={bien.surface}
                             onChange={(e) => updateBien(bien.id, 'surface', Number(e.target.value))}
                           />
