@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #6366f1;
+  --color-brand-secondary: #10b981;
+  --color-brand-danger: #ef4444;
+  --color-brand-dark: #0f172a;
+  
+  --font-sans: "Inter", "sans-serif";
+  --font-display: "Outfit", "sans-serif";
+  
+  --animate-fade-in: fadeIn 0.5s ease-out forwards;
+  --animate-slide-up: slideUp 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+  }
+  
+  h1, h2, h3, h4, .font-display {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-white/30 shadow-xl shadow-slate-200/50;
+  }
+  
+  .input-label {
+    @apply text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block;
+  }
+  
+  .input-field {
+    @apply w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 font-bold text-slate-700 focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary outline-none transition-all;
+  }
+
+  .btn-primary {
+    @apply bg-brand-primary text-white font-bold py-3 px-6 rounded-2xl shadow-lg shadow-brand-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+}
+
+/* Premium Sliders */
+input[type="range"] {
+  @apply appearance-none bg-slate-200 h-2 rounded-full outline-none transition-all;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  @apply appearance-none w-6 h-6 bg-white border-4 border-brand-primary rounded-full cursor-pointer shadow-lg hover:scale-110 active:scale-95 transition-all;
+}
+
+input[type="range"]::-moz-range-thumb {
+  @apply w-6 h-6 bg-white border-4 border-brand-primary rounded-full cursor-pointer shadow-lg hover:scale-110 active:scale-95 transition-all;
+}
