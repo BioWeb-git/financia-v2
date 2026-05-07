@@ -220,12 +220,12 @@ function App() {
     if (initialState?.scenarios) return initialState.scenarios;
     return [
       { 
-        id: 0, name: "🏠 Actuel (Locataire)", price: 0, apport: 0, rate: 0, insurance: 0, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.5,
+        id: 0, name: "🏠 Actuel (Locataire)", price: 0, surface: 0, apport: 0, rate: 0, insurance: 0, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.5,
         rent: FACTORY_SETTINGS.rent, income: FACTORY_SETTINGS.incomeJess, income2: FACTORY_SETTINGS.incomeRenaud,
         budget: { ...FACTORY_SETTINGS.budget } 
       },
       { 
-        id: 1, name: "Option A", price: 450000, apport: 100000, rate: 3.8, insurance: 0.3, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.5,
+        id: 1, name: "Option A", price: 450000, surface: 100, apport: 100000, rate: 3.8, insurance: 0.3, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.5,
         rent: FACTORY_SETTINGS.rent, income: FACTORY_SETTINGS.incomeJess, income2: FACTORY_SETTINGS.incomeRenaud,
         budget: { ...FACTORY_SETTINGS.budget } 
       }
@@ -483,6 +483,7 @@ function App() {
         income2: globalSettings.incomeRenaud,
         rent: globalSettings.rent,
         price: s.id === 0 ? 0 : 450000,
+        surface: s.id === 0 ? 0 : 100,
         apport: s.id === 0 ? 0 : 100000,
         rate: s.id === 0 ? 0 : 3.8,
         duration: 25,
@@ -690,14 +691,47 @@ function App() {
 
         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
           {/* Ligne 1 : données financières */}
-          <div className="grid grid-cols-4 divide-x divide-slate-100">
+          <div className="grid grid-cols-5 divide-x divide-slate-100">
             <div className="pr-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Prix du Bien</p>
-              <p className="text-xl font-black text-slate-900">{currentScenario.price.toLocaleString()} €</p>
+              <div className="flex items-baseline gap-1">
+                <input 
+                  type="number"
+                  className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-24"
+                  value={currentScenario.price}
+                  onChange={(e) => updateCurrentScenario('price', Number(e.target.value))}
+                />
+                <span className="text-sm font-black text-slate-400">€</span>
+              </div>
+            </div>
+            <div className="px-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Surface</p>
+              <div className="flex items-baseline gap-2">
+                <input 
+                  type="number"
+                  className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-16"
+                  value={currentScenario.surface || 0}
+                  onChange={(e) => updateCurrentScenario('surface', Number(e.target.value))}
+                />
+                <span className="text-sm font-black text-slate-400">m²</span>
+                {currentScenario.surface > 0 && (
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-lg ml-2">
+                    {Math.round(currentScenario.price / currentScenario.surface).toLocaleString()} €/m²
+                  </span>
+                )}
+              </div>
             </div>
             <div className="px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Votre Apport</p>
-              <p className="text-xl font-black text-brand-secondary">{currentScenario.apport.toLocaleString()} €</p>
+              <div className="flex items-baseline gap-1">
+                <input 
+                  type="number"
+                  className="bg-transparent border-none p-0 text-xl font-black text-brand-secondary focus:ring-0 w-24"
+                  value={currentScenario.apport}
+                  onChange={(e) => updateCurrentScenario('apport', Number(e.target.value))}
+                />
+                <span className="text-sm font-black text-slate-400">€</span>
+              </div>
             </div>
             {(() => {
               const restant = (globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - currentScenario.apport;
@@ -1050,15 +1084,46 @@ function App() {
                   </div>
                   <h3 className="text-sm font-black text-white tracking-tight uppercase">Le Projet</h3>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Lien de l'annonce</label>
-                  <input type="text" placeholder="https://..." value={currentScenario.adUrl || ""} onChange={(e) => updateCurrentScenario('adUrl', e.target.value)} className="w-full bg-slate-800 rounded-lg p-2 text-xs font-medium text-white outline-none border border-slate-700 focus:border-brand-primary" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between mb-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase">Prix Net Vendeur</label>
-                    <span className="text-xs font-black text-white">{currentScenario.price.toLocaleString()} €</span>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Lien de l'annonce</label>
+                    <input type="text" placeholder="https://..." value={currentScenario.adUrl || ""} onChange={(e) => updateCurrentScenario('adUrl', e.target.value)} className="w-full bg-slate-800 rounded-lg p-2 text-xs font-medium text-white outline-none border border-slate-700 focus:border-brand-primary" />
                   </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">DPE</label>
+                    <select 
+                      className="w-full bg-slate-800 rounded-lg p-2 text-xs font-bold text-white outline-none border border-slate-700 focus:border-brand-primary appearance-none text-center"
+                      value={currentScenario.dpe || 'D'}
+                      onChange={(e) => updateCurrentScenario('dpe', e.target.value)}
+                    >
+                      {['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(grade => (
+                        <option key={grade} value={grade}>{grade}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase">Prix Net (€)</label>
+                      <input 
+                        type="number" 
+                        value={currentScenario.price} 
+                        onChange={(e) => updateCurrentScenario('price', Number(e.target.value))}
+                        className="w-full bg-slate-800 rounded-lg p-2 text-xs font-black text-white outline-none border border-slate-700 focus:border-brand-primary"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase">Surface (m²)</label>
+                      <input 
+                        type="number" 
+                        value={currentScenario.surface || ''} 
+                        onChange={(e) => updateCurrentScenario('surface', Number(e.target.value))}
+                        className="w-full bg-slate-800 rounded-lg p-2 text-xs font-black text-white outline-none border border-slate-700 focus:border-brand-primary"
+                      />
+                    </div>
+                  </div>
+                  
                   <div className="flex items-center gap-2">
                     <button onClick={() => updateCurrentScenario('price', Math.max(0, currentScenario.price - 1000))} className="text-slate-500 hover:text-brand-primary"><Minus size={12} /></button>
                     <input type="range" min="100000" max="800000" step="1000" value={currentScenario.price} onChange={(e) => updateCurrentScenario('price', Number(e.target.value))} className="flex-1 h-1 accent-brand-primary cursor-pointer" />
