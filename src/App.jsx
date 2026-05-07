@@ -3,16 +3,17 @@ import {
   Calculator, TrendingUp, PieChart, Table as TableIcon, Home,
   ArrowLeftRight, Plus, Minus, Trash2, ShieldCheck, AlertTriangle, User, Lock, Unlock, RotateCcw,
   Info, ChevronRight, Save, FileText, Landmark, Leaf, History, Settings, ExternalLink,
-  ArrowUpRight, ArrowDownRight, X
+  ArrowUpRight, ArrowDownRight, X, Search
 } from 'lucide-react';
+import BienPage from './BienPage';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title, BarElement } from 'chart.js';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title, BarElement, Filler } from 'chart.js';
 import { Doughnut, Line, Bar } from 'react-chartjs-2';
 import { calculateMonthlyPayment, generateAmortizationTable, calculateTotalCost, calculateInflationImpact } from './lib/finance';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Filler);
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -153,8 +154,29 @@ const HelpTip = ({ title, content, position = 'top', align = 'center' }) => (
 );
 
 function App() {
-  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const getInitialPage = () => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/recherche') return 'biens';
+    return 'dashboard';
+  };
   
+  const [activePage, setActivePage] = useState(getInitialPage());
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handlePopState = () => setActivePage(getInitialPage());
+    window.addEventListener('popstate', handlePopState);
+    // Assure l'URL initiale si on arrive sur la racine
+    if (window.location.pathname === '/') {
+      window.history.replaceState({}, '', '/dashboard');
+    }
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (page) => {
+    setActivePage(page);
+    window.history.pushState({}, '', page === 'biens' ? '/recherche' : '/dashboard');
+  };
+
   // 1. Définition des valeurs "Usine" (si rien n'est sauvegardé)
   const FACTORY_SETTINGS = {
     incomeJess: 3200,
@@ -601,13 +623,33 @@ function App() {
       <nav className="w-16 bg-slate-900 flex flex-col items-center py-6 gap-8">
         <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white"><Landmark size={20} /></div>
         <div className="flex flex-col gap-6 py-6">
+          <button 
+            onClick={() => navigateTo('dashboard')} 
+            className={cn(
+              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative",
+              activePage === 'dashboard' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white"
+            )}
+          >
+            <PieChart size={20} />
+            <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Dashboard</span>
+          </button>
+
+          <button 
+            onClick={() => navigateTo('biens')} 
+            className={cn(
+              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative",
+              activePage === 'biens' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white"
+            )}
+          >
+            <Search size={20} />
+            <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Recherche Biens</span>
+          </button>
+
+          <div className="w-8 h-px bg-slate-800 mx-auto" />
+          
           <button onClick={() => setIsSettingsOpen(true)} className="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-white transition-all group relative">
             <Settings size={20} />
-            <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">Paramètres Globaux</span>
-          </button>
-          <div className="w-8 h-px bg-slate-800 mx-auto" />
-          <button className="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-white transition-all group relative">
-            <PieChart size={20} />
+            <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Paramètres Globaux</span>
           </button>
         </div>
       </nav>
@@ -627,7 +669,11 @@ function App() {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+      {activePage === 'biens' ? (
+        <BienPage />
+      ) : (
+        <>
+          <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header className="flex justify-between items-center">
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Renaud & Jessica <span className="text-slate-400 font-medium">| Dashboard</span></h2>
@@ -657,10 +703,10 @@ function App() {
               const restant = (globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - currentScenario.apport;
               return (
                 <div className="px-4">
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                  <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                     Épargne Restante
                     <HelpTip title="Épargne Restante" content="Épargne totale disponible moins l'apport engagé dans ce scénario. Représente la réserve de liquidités conservée après l'achat." position="bottom" />
-                  </p>
+                  </div>
                   <p className={`text-xl font-black leading-tight ${restant >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {Math.round(restant).toLocaleString()}&nbsp;€
                   </p>
@@ -671,10 +717,10 @@ function App() {
               );
             })()}
             <div className="px-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                 Capacité Bancaire (35%)
                 <HelpTip title="Revenu de Référence" content="Basé sur le revenu bancaire de référence de Renaud et Jess cumulé (salaires, primes et BNC lissés)." position="bottom" />
-              </p>
+              </div>
               <p className="text-xl font-black text-slate-800">
                 {Math.round((currentResults.bankIncome * 0.35)).toLocaleString()}&nbsp;€
               </p>
@@ -1331,7 +1377,9 @@ function App() {
             </div>
           </div>
         </div>
-      </aside>
+        </aside>
+      </>
+    )}
 
       <AnimatePresence>
         {isSettingsOpen && (
