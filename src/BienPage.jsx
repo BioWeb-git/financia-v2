@@ -7,6 +7,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 const STANDARD_COLUMNS = [
+  { id: 'contact', label: '1er Contact', width: 'w-10', align: 'center' },
+  { id: 'visitePrevue', label: 'Visite prévue', width: 'w-10', align: 'center' },
   { id: 'visite', label: 'Visité', width: 'w-10', align: 'center' },
   { id: 'note', label: 'Note', width: 'w-20', align: 'center' },
   { id: 'nom', label: 'Bien / Nom', minWidth: 'min-w-[150px]' },
@@ -48,17 +50,14 @@ const BienPage = () => {
       const data = await res.json();
       setBiens(data.biens || []);
       setCustomColumns(data.customColumns || []);
+      const savedOrder = data.columnOrder || [];
+      const standardIds = STANDARD_COLUMNS.map(c => c.id);
+      const customIds = (data.customColumns || []).map(c => c.id);
       
-      // Initialise l'ordre si non présent
-      if (data.columnOrder && data.columnOrder.length > 0) {
-        setColumnOrder(data.columnOrder);
-      } else {
-        const initialOrder = [
-          ...STANDARD_COLUMNS.map(c => c.id),
-          ...(data.customColumns || []).map(c => c.id)
-        ];
-        setColumnOrder(initialOrder);
-      }
+      const missingStandardIds = standardIds.filter(id => !savedOrder.includes(id));
+      const finalOrder = [...missingStandardIds, ...savedOrder.filter(id => standardIds.includes(id) || customIds.includes(id))];
+      
+      setColumnOrder(finalOrder);
     } catch (err) {
       console.error("Erreur chargement biens:", err);
     } finally {
@@ -227,6 +226,8 @@ const BienPage = () => {
       travaux: "Non",
       annee: "",
       visite: false,
+      contact: false,
+      visitePrevue: false,
       url: "",
       maps: "",
       customValues: {}
@@ -404,6 +405,28 @@ const BienPage = () => {
               ) : biens.map(bien => (
                 <tr key={bien.id} className="hover:bg-slate-50/50 transition-colors group">
                   {columnOrder.map(colId => {
+                    if (colId === 'contact') return (
+                      <td key="contact" className="px-2 py-1.5 text-center">
+                        <button 
+                          onClick={() => updateBien(bien.id, 'contact', !bien.contact)}
+                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bien.contact ? 'bg-amber-500 text-white border border-amber-500 shadow-sm scale-110' : 'bg-slate-50 border border-slate-300 text-transparent hover:border-amber-400 hover:bg-amber-50'}`}
+                        >
+                          <Check size={12} className={bien.contact ? 'opacity-100' : 'opacity-0'} />
+                        </button>
+                      </td>
+                    );
+
+                    if (colId === 'visitePrevue') return (
+                      <td key="visitePrevue" className="px-2 py-1.5 text-center">
+                        <button 
+                          onClick={() => updateBien(bien.id, 'visitePrevue', !bien.visitePrevue)}
+                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bien.visitePrevue ? 'bg-indigo-500 text-white border border-indigo-500 shadow-sm scale-110' : 'bg-slate-50 border border-slate-300 text-transparent hover:border-indigo-400 hover:bg-indigo-50'}`}
+                        >
+                          <Check size={12} className={bien.visitePrevue ? 'opacity-100' : 'opacity-0'} />
+                        </button>
+                      </td>
+                    );
+
                     if (colId === 'visite') return (
                       <td key="visite" className="px-2 py-1.5 text-center">
                         <button 
