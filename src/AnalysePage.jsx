@@ -142,7 +142,8 @@ function Alert({ level, msg }) {
 }
 
 function computeScenario(p, apport) {
-  const { price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale } = p;
+  const { price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, bankIncome, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale } = p;
+  const incomeForDebt = bankIncome > 0 ? bankIncome : income;
   const fraisTotal = price * (fraisNotaire / 100) + fraisAgence + fraisAutres;
   const totalAcquisition = price + fraisTotal;
   const loanAmount = Math.max(0, totalAcquisition - apport);
@@ -152,7 +153,7 @@ function computeScenario(p, apport) {
 
   // Phase 1
   const pmt1 = calculateMonthlyPayment(loanAmount, rate, duration, insurance);
-  const debtRatio1 = income > 0 ? (pmt1.total / income) * 100 : 0;
+  const debtRatio1 = incomeForDebt > 0 ? (pmt1.total / incomeForDebt) * 100 : 0;
   const rav1 = income - pmt1.total;
   const epargne1 = rav1 - depensesFamille;
 
@@ -183,7 +184,7 @@ function computeScenario(p, apport) {
 
   const rav2 = income - pmt2.total;
   const epargne2 = rav2 - depensesFamille;
-  const debtRatio2 = income > 0 ? (pmt2.total / income) * 100 : 0;
+  const debtRatio2 = incomeForDebt > 0 ? (pmt2.total / incomeForDebt) * 100 : 0;
 
   // Coût total
   const totalPaye1 = pmt1.total * tRA;
@@ -423,19 +424,33 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings]);
 
   const repartir = useCallback(() => {
-    setApports(distributeApports(optiApport, MAX_APPORT));
-  }, [optiApport]);
+    const lo = optiApport;
+    const hi = apports[3]; // D inchangé
+    const range = hi - lo;
+    if (range <= 0) {
+      setApports([lo, lo, lo, hi]);
+      return;
+    }
+    setApports([
+      lo,
+      Math.round((lo + range / 3) / 1000) * 1000,
+      Math.round((lo + 2 * range / 3) / 1000) * 1000,
+      hi,
+    ]);
+  }, [optiApport, apports]);
 
   const [showCharts, setShowCharts] = useState(true);
 
   const params = useMemo(() => ({
     price, fraisNotaire, fraisAgence, fraisAutres,
-    rate, duration, insurance, income, depensesFamille, rendement,
+    rate, duration, insurance, income,
+    bankIncome: (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0),
+    depensesFamille, rendement,
     prixParcelle: parcelleActive ? prixParcelle : 0,
     moisVente, raMode,
     matelas, travaux, epargneTotale,
     parcelleActive,
-  }), [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale, parcelleActive]);
+  }), [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, globalSettings, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale, parcelleActive]);
 
   const results = useMemo(() => apports.map((a) => computeScenario(params, a)), [params, apports]);
 
