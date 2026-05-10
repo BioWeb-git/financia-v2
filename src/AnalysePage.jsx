@@ -608,11 +608,11 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const totalAcquisition = price + fraisTotal;
 
   return (
-    <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+    <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 bg-slate-50/50 pb-20 md:pb-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap gap-3 items-start justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+          <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
             Analyse Comparative
             <span className="text-slate-400 font-medium ml-2">| Simulateur</span>
           </h2>
@@ -622,22 +622,22 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
             </p>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-white border border-slate-100 rounded-2xl px-4 py-2 text-center">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="bg-white border border-slate-100 rounded-2xl px-3 py-2 text-center">
             <p className="text-[9px] text-slate-400 uppercase font-bold">Acquisition totale</p>
-            <p className="text-lg font-black text-slate-900">{fmt(totalAcquisition)} €</p>
+            <p className="text-base font-black text-slate-900">{fmt(totalAcquisition)} €</p>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl px-4 py-2 text-center">
+          <div className="bg-white border border-slate-100 rounded-2xl px-3 py-2 text-center">
             <p className="text-[9px] text-slate-400 uppercase font-bold">Dont frais</p>
-            <p className="text-lg font-black text-slate-500">{fmt(fraisTotal)} €</p>
+            <p className="text-base font-black text-slate-500">{fmt(fraisTotal)} €</p>
           </div>
           {currentScenario?.price > 0 && (
             <button
               onClick={syncFromDashboard}
-              className="px-4 py-2 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase hover:bg-indigo-100 transition-all flex items-center gap-2"
+              className="px-3 py-2 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase hover:bg-indigo-100 transition-all flex items-center gap-1"
               title="Importer les valeurs du scénario actif dans le dashboard"
             >
-              ↙ Sync dashboard
+              ↙ Sync
             </button>
           )}
         </div>
@@ -742,7 +742,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       {/* Paramètres globaux */}
       <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 space-y-6">
         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paramètres Globaux</h3>
-        <div className="grid grid-cols-2 gap-x-10 gap-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-5">
           <Slider label="Prix du bien" value={price} min={100000} max={800000} step={5000} onChange={setPrice} format={(v) => `${fmt(v)} €`} />
           <Slider label="Revenus mensuels nets" value={income} min={2000} max={12000} step={100} onChange={setIncome} format={(v) => `${fmt(v)} €`} />
           <Slider label="Frais de notaire" value={fraisNotaire} min={2} max={10} step={0.1} onChange={setFraisNotaire} format={(v) => `${v.toFixed(1)} %`} sub={`→ ${fmt(price * fraisNotaire / 100)} €`} />
@@ -757,7 +757,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       </div>
 
       {/* Parcelle + Patrimoine */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className={cn('bg-white rounded-[2rem] border shadow-sm p-6 space-y-5 transition-all', parcelleActive ? 'border-amber-100' : 'border-slate-100')}>
           <div className="flex items-center justify-between">
             <h3 className={cn('text-[10px] font-black uppercase tracking-widest transition-colors', parcelleActive ? 'text-amber-500' : 'text-slate-300')}>
@@ -818,7 +818,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
             ↺ Recalculer la répartition
           </button>
         </div>
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {COLORS.map((c, i) => (
             <div key={c.id} className="space-y-3">
               <div className="flex items-center gap-2">
@@ -944,7 +944,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
         </button>
 
         {showCharts && (
-          <div className="px-6 pb-6 grid grid-cols-2 gap-8">
+          <div className="px-3 md:px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
 
             <div className="space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">1 · Mensualité dans le temps</p>
@@ -1062,7 +1062,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       {/* Quick analyses */}
       <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6">
         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Analyses Rapides</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
             {
               label: 'Apport minimum HCSF (35 %)',

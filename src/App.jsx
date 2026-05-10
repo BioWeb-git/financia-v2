@@ -178,6 +178,7 @@ function App() {
 
   const navigateTo = (page) => {
     setActivePage(page);
+    setIsMobileAsideOpen(false);
     const urls = { biens: '/recherche', analyse: '/analyse', dashboard: '/dashboard' };
     window.history.pushState({}, '', urls[page] || '/dashboard');
   };
@@ -577,6 +578,7 @@ function App() {
 
   const [sidebarWidth, setSidebarWidth] = useState(380);
   const [isResizing, setIsResizing] = useState(false);
+  const [isMobileAsideOpen, setIsMobileAsideOpen] = useState(false);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [modalType, setModalType] = useState(null);
   const [tempName, setTempName] = useState('');
@@ -637,7 +639,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-[#f8fafc] flex overflow-hidden">
+    <div className="h-screen bg-[#f8fafc] flex overflow-hidden flex-col md:flex-row">
       <AnimatePresence>
         {modalType && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
@@ -671,49 +673,49 @@ function App() {
         )}
       </AnimatePresence>
 
-      <nav className="w-16 bg-slate-900 flex flex-col items-center py-6 gap-8">
+      {/* Nav desktop : barre verticale gauche */}
+      <nav className="hidden md:flex w-16 bg-slate-900 flex-col items-center py-6 gap-8">
         <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white"><Landmark size={20} /></div>
         <div className="flex flex-col gap-6 py-6">
-          <button 
-            onClick={() => navigateTo('dashboard')} 
-            className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative",
-              activePage === 'dashboard' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white"
-            )}
-          >
+          <button onClick={() => navigateTo('dashboard')} className={cn("w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative", activePage === 'dashboard' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white")}>
             <PieChart size={20} />
             <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Dashboard</span>
           </button>
-
-          <button 
-            onClick={() => navigateTo('biens')} 
-            className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative",
-              activePage === 'biens' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white"
-            )}
-          >
+          <button onClick={() => navigateTo('biens')} className={cn("w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative", activePage === 'biens' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white")}>
             <Search size={20} />
             <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Recherche Biens</span>
           </button>
-
-          <button
-            onClick={() => navigateTo('analyse')}
-            className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative",
-              activePage === 'analyse' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white"
-            )}
-          >
+          <button onClick={() => navigateTo('analyse')} className={cn("w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative", activePage === 'analyse' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white")}>
             <TrendingUp size={20} />
             <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Analyse Comparative</span>
           </button>
-
           <div className="w-8 h-px bg-slate-800 mx-auto" />
-
           <button onClick={() => setIsSettingsOpen(true)} className="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-white transition-all group relative">
             <Settings size={20} />
             <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Paramètres Globaux</span>
           </button>
         </div>
+      </nav>
+
+      {/* Nav mobile : barre fixe en bas */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-14 bg-slate-900 flex items-center justify-around px-4 border-t border-slate-800">
+        <button onClick={() => navigateTo('dashboard')} className={cn("flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all", activePage === 'dashboard' ? "text-brand-primary" : "text-slate-500")}>
+          <PieChart size={20} /><span className="text-[9px] font-black uppercase">Dashboard</span>
+        </button>
+        <button onClick={() => navigateTo('biens')} className={cn("flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all", activePage === 'biens' ? "text-brand-primary" : "text-slate-500")}>
+          <Search size={20} /><span className="text-[9px] font-black uppercase">Biens</span>
+        </button>
+        <button onClick={() => navigateTo('analyse')} className={cn("flex flex-col items-center gap-0.5 p-2 rounded-xl transition-all", activePage === 'analyse' ? "text-brand-primary" : "text-slate-500")}>
+          <TrendingUp size={20} /><span className="text-[9px] font-black uppercase">Analyse</span>
+        </button>
+        {activePage === 'dashboard' && (
+          <button onClick={() => setIsMobileAsideOpen(true)} className="flex flex-col items-center gap-0.5 p-2 rounded-xl text-slate-500">
+            <Settings size={20} /><span className="text-[9px] font-black uppercase">Cockpit</span>
+          </button>
+        )}
+        <button onClick={() => setIsSettingsOpen(true)} className="flex flex-col items-center gap-0.5 p-2 rounded-xl text-slate-500">
+          <Settings size={20} /><span className="text-[9px] font-black uppercase">Config</span>
+        </button>
       </nav>
       
       <AnimatePresence>
@@ -737,8 +739,8 @@ function App() {
         <AnalysePage currentScenario={currentScenario} globalSettings={globalSettings} currentResults={currentResults} />
       ) : (
         <>
-          <main className="flex-1 overflow-y-auto p-6 space-y-6">
-        <header className="flex justify-between items-center">
+          <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
+        <header className="flex flex-wrap gap-2 justify-between items-center">
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Renaud & Jessica <span className="text-slate-400 font-medium">| Dashboard</span></h2>
             {currentScenario.adUrl && (
@@ -773,10 +775,10 @@ function App() {
           </div>
         </header>
 
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+        <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
           {/* Ligne 1 : données financières */}
-          <div className="grid grid-cols-5 divide-x divide-slate-100">
-            <div className="pr-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-0 lg:divide-x lg:divide-slate-100">
+            <div className="p-2 lg:p-0 lg:pr-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Prix du Bien</p>
               <div className="flex items-baseline gap-1 flex-wrap">
                 <input
@@ -789,24 +791,24 @@ function App() {
                 <DeltaBadge current={currentScenario.price} compare={compareScenario?.price} />
               </div>
             </div>
-            <div className="px-4">
+            <div className="p-2 lg:p-0 lg:px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Surface</p>
-              <div className="flex items-baseline gap-2">
-                <input 
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <input
                   type="number"
                   className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-16"
                   value={currentScenario.surface || 0}
                   onChange={(e) => updateCurrentScenario('surface', Number(e.target.value))}
                 />
                 <span className="text-sm font-black text-slate-400">m²</span>
-                {currentScenario.surface > 0 && (
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-lg ml-2">
-                    {Math.round(currentScenario.price / currentScenario.surface).toLocaleString()} €/m²
-                  </span>
-                )}
               </div>
+              {currentScenario.surface > 0 && (
+                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">
+                  {Math.round(currentScenario.price / currentScenario.surface).toLocaleString()} €/m²
+                </p>
+              )}
             </div>
-            <div className="px-4">
+            <div className="p-2 lg:p-0 lg:px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Votre Apport</p>
               <div className="flex items-baseline gap-1 flex-wrap">
                 <input
@@ -822,7 +824,7 @@ function App() {
             {(() => {
               const restant = (globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - currentScenario.apport;
               return (
-                <div className="px-4">
+                <div className="p-2 lg:p-0 lg:px-4">
                   <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                     Épargne Restante
                     <HelpTip title="Épargne Restante" content="Épargne totale disponible moins l'apport engagé dans ce scénario. Représente la réserve de liquidités conservée après l'achat." position="bottom" />
@@ -841,7 +843,7 @@ function App() {
                 </div>
               );
             })()}
-            <div className="px-4">
+            <div className="p-2 lg:p-0 lg:px-4">
               <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                 Capacité Bancaire (35%)
                 <HelpTip title="Revenu de Référence" content="Basé sur le revenu bancaire de référence de Renaud et Jess cumulé (salaires, primes et BNC lissés)." position="bottom" />
@@ -853,8 +855,8 @@ function App() {
           </div>
           <div className="border-t border-slate-100" />
           {/* Ligne 2 : paramètres du prêt */}
-          <div className="grid grid-cols-6 divide-x divide-slate-100">
-            <div className="pr-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 lg:gap-0 lg:divide-x lg:divide-slate-100">
+            <div className="p-2 lg:p-0 lg:pr-4">
               <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                 Revenus Cumulés
                 <HelpTip title="Revenus Bancaires" content="Revenus configurés par défaut (salaires, primes et BNC lissés), utilisés comme référence bancaire pour le calcul du taux d'endettement." position="bottom" />
@@ -867,7 +869,7 @@ function App() {
                 Jess {Math.round(globalSettings.incomeJess).toLocaleString()} + Renaud {Math.round(globalSettings.incomeRenaud).toLocaleString()}
               </p>
             </div>
-            <div className="px-4">
+            <div className="p-2 lg:p-0 lg:px-4">
               <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                 Revenus Cumulés
                 <HelpTip title="Revenus Mensuels Nets" content="Cumul des revenus nets mensuels configurés dans le scénario, utilisés pour le budget et le calcul du Reste à Vivre." position="bottom" />
@@ -880,7 +882,7 @@ function App() {
                 Jess {Math.round(currentScenario.income).toLocaleString()} + Renaud {Math.round(currentScenario.income2).toLocaleString()}
               </p>
             </div>
-            <div className="px-4">
+            <div className="p-2 lg:p-0 lg:px-4">
               <p className="text-[10px] font-black text-emerald-500 uppercase mb-1">Épargne ({currentScenario.duration} ans)</p>
               <div className="flex items-baseline gap-1 flex-wrap">
                 <p className="text-xl font-black text-emerald-600 leading-tight">
@@ -897,25 +899,25 @@ function App() {
                 {Math.round(typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount).toLocaleString()}€ x 12 x {currentScenario.duration} ans
               </p>
             </div>
-            <div className="px-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+            <div className="p-2 lg:p-0 lg:px-4">
+              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                 Budget Mensuel
                 <HelpTip title="Budget Mensuel Détaillé" content="Somme de tous les postes du budget mensuel détaillé, hors épargne." position="bottom" />
-              </p>
+              </div>
               <div className="flex items-baseline gap-1 flex-wrap">
                 <p className="text-xl font-black text-slate-900">{Math.round(currentResults.totalBudget).toLocaleString()}&nbsp;€</p>
                 <DeltaBadge current={currentResults.totalBudget} compare={compareResults?.totalBudget} lowerIsBetter={true} />
               </div>
               <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">hors épargne</p>
             </div>
-            <div className="px-4">
+            <div className="p-2 lg:p-0 lg:px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Taux Fixe</p>
               <div className="flex items-baseline gap-1 flex-wrap">
                 <p className="text-xl font-black text-slate-900">{currentScenario.rate.toFixed(2)} %</p>
                 {compareScenario && <DeltaBadge current={currentScenario.rate} compare={compareScenario.rate} lowerIsBetter={true} isPercent={true} />}
               </div>
             </div>
-            <div className="px-4">
+            <div className="p-2 lg:p-0 lg:px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Durée</p>
               <div className="flex items-baseline gap-1 flex-wrap">
                 <p className="text-xl font-black text-slate-900">{currentScenario.duration} ans</p>
@@ -926,7 +928,7 @@ function App() {
         </div>
 
         {/* LIGNE 1: INDICATEURS CLÉS (KPIs) */}
-        <div className="grid grid-cols-3 xl:grid-cols-6 gap-6">
+        <div className="grid grid-cols-2 xl:grid-cols-6 gap-3 md:gap-6">
           <div className="glass-card p-6 rounded-[2rem]">
             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Opération</p>
             <div className="flex items-baseline gap-1 flex-wrap">
@@ -1049,8 +1051,8 @@ function App() {
         </div>
 
         {/* LIGNE 2: ANALYSE PATRIMOINE & VERDICT */}
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-8 glass-card p-8 rounded-[3rem] h-[450px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+          <div className="lg:col-span-8 glass-card p-4 md:p-8 rounded-[2rem] md:rounded-[3rem] h-[350px] md:h-[450px]">
              <div className="flex justify-between items-start mb-6">
                <div>
                  <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -1165,19 +1167,35 @@ function App() {
         </div>
       </main>
 
-      <aside style={{ width: `${sidebarWidth}px` }} className="bg-slate-900 border-l border-slate-800 flex flex-col relative transition-none text-white">
-        <div onMouseDown={() => setIsResizing(true)} className="absolute left-0 top-0 w-1.5 h-full cursor-col-resize hover:bg-brand-primary/30 z-50 active:bg-brand-primary transition-colors" />
-        
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center px-1">
+      {/* Overlay mobile pour fermer le panel */}
+      {isMobileAsideOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsMobileAsideOpen(false)} />
+      )}
+
+      <aside
+        style={{ width: `${sidebarWidth}px` }}
+        className={cn(
+          "bg-slate-900 border-l border-slate-800 flex flex-col relative transition-none text-white",
+          "md:flex",
+          isMobileAsideOpen
+            ? "fixed inset-y-0 right-0 z-50 w-full sm:w-96 flex"
+            : "hidden"
+        )}
+      >
+        <div onMouseDown={() => setIsResizing(true)} className="hidden md:block absolute left-0 top-0 w-1.5 h-full cursor-col-resize hover:bg-brand-primary/30 z-50 active:bg-brand-primary transition-colors" />
+
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center px-4">
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
             <Settings size={14} className="text-brand-primary" /> Cockpit Expert
           </h2>
-          <button 
-            onClick={resetAll}
-            className="text-[9px] font-black text-slate-500 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-slate-800 transition-all border border-transparent hover:border-slate-700"
-          >
-            <RotateCcw size={10} /> RESET GLOBAL
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={resetAll} className="text-[9px] font-black text-slate-500 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-slate-800 transition-all border border-transparent hover:border-slate-700">
+              <RotateCcw size={10} /> RESET GLOBAL
+            </button>
+            <button onClick={() => setIsMobileAsideOpen(false)} className="md:hidden w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
