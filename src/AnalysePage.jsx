@@ -441,7 +441,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     return computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, bankIncome);
   }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings, currentScenario, currentResults]);
 
-  const optiApportRounded = Math.ceil(optiApport / 1000) * 1000;
+  const optiApportRounded = Math.round(optiApport / 1000) * 1000;
 
   const repartir = useCallback(() => {
     const lo = optiApportRounded;
