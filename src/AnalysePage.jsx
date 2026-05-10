@@ -22,6 +22,12 @@ const COLORS = [
   { id: 'C', hex: '#f59e0b', label: 'Scénario C', tw: 'amber' },
   { id: 'D', hex: '#f43f5e', label: 'Scénario D', tw: 'rose' },
 ];
+const COLORS_PASTEL = [
+  { hex: '#c7d2fe' },
+  { hex: '#a7f3d0' },
+  { hex: '#fde68a' },
+  { hex: '#fecdd3' },
+];
 
 const CHART_OPTIONS_BASE = {
   responsive: true,
@@ -363,6 +369,11 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     return sim.apports.map(a => computeScenario(sim.params, a));
   }, [compareSimId, savedSims]);
 
+  const compareSimParams = useMemo(() => {
+    if (!compareSimId) return null;
+    return savedSims.find(s => s.id === compareSimId)?.params ?? null;
+  }, [compareSimId, savedSims]);
+
   const repartir = useCallback(() => {
     const min = computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income);
     setApports(distributeApports(min, MAX_APPORT));
@@ -490,38 +501,85 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       };
     });
 
+    // Courbes de référence (simulation comparée) — pastel + tirets
+    const cmpRate = compareSimParams?.rate ?? rate;
+    const cmpDuration = compareSimParams?.duration ?? duration;
+    const cmpRendement = compareSimParams?.rendement ?? rendement;
+    const cmpNTotal = Math.round(cmpDuration * 12);
+    const cmpBase = { borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 4 };
+
+    const cmpMensualiteLines = compareSimResults ? COLORS_PASTEL.map((c, i) => {
+      const r = compareSimResults[i];
+      const rawData = months.map((m) => m < r.tRA ? r.pmt1.total : (m <= cmpNTotal ? r.pmt2.total : null));
+      return { label: `${COLORS[i].label} (réf)`, data: monthsSubsampled.map((m) => rawData[m] ?? null), borderColor: c.hex, backgroundColor: 'transparent', stepped: 'after', ...cmpBase };
+    }) : [];
+
+    const cmpCapitalLines = compareSimResults ? COLORS_PASTEL.map((c, i) => {
+      const r = compareSimResults[i];
+      let crApresRA = null;
+      const rawData = months.map((m) => {
+        if (m < r.tRA) return capitalRestantDuExact(r.loanAmount, cmpRate, cmpDuration, m);
+        if (m === r.tRA) { crApresRA = Math.max(0, r.crAvantRA - r.raEffectif); return r.crAvantRA; }
+        if (crApresRA === null) return capitalRestantDuExact(r.loanAmount, cmpRate, cmpDuration, m);
+        return capitalRestantDuExact(crApresRA, cmpRate, r.dureePhase2Mois / 12, m - r.tRA);
+      });
+      return { label: `${COLORS[i].label} (réf)`, data: monthsSubsampled.map((m) => rawData[m] ?? null), borderColor: c.hex, backgroundColor: 'transparent', tension: 0, ...cmpBase };
+    }) : [];
+
+    const cmpPatrimoineLines = compareSimResults ? COLORS_PASTEL.map((c, i) => {
+      const r = compareSimResults[i];
+      const ep1 = Math.max(0, r.epargne1); const ep2 = Math.max(0, r.epargne2);
+      return {
+        label: `${COLORS[i].label} (réf)`,
+        data: years.map((y) => {
+          const m = y * 12;
+          if (m <= r.tRA) return valeurPlacement(r.cashPlace, ep1, cmpRendement, m);
+          if (m <= r.loanEndMonth) return valeurPlacement(r.capitalPhase2 ?? r.cashPlace, ep2, cmpRendement, m - r.tRA);
+          return valeurPlacement(r.phase2Val, r.ep3, cmpRendement, m - r.loanEndMonth);
+        }),
+        borderColor: c.hex, backgroundColor: 'transparent', fill: false, tension: 0.3, ...cmpBase,
+      };
+    }) : [];
+
+    const cmpRessentieLines = compareSimResults ? COLORS_PASTEL.map((c, i) => {
+      const r = compareSimResults[i];
+      const ep1 = Math.max(0, r.epargne1); const ep2 = Math.max(0, r.epargne2);
+      const rawData = months.map((m) => {
+        const inPhase3 = m > r.loanEndMonth;
+        let placem = m <= r.tRA ? valeurPlacement(r.cashPlace, ep1, cmpRendement, m)
+          : !inPhase3 ? valeurPlacement(r.capitalPhase2, ep2, cmpRendement, m - r.tRA)
+          : valeurPlacement(r.phase2Val, r.ep3, cmpRendement, m - r.loanEndMonth);
+        const pmt = inPhase3 ? 0 : (m <= r.tRA ? r.pmt1.total : r.pmt2.total);
+        return Math.max(0, pmt - placem * (cmpRendement / 100 / 12));
+      });
+      return { label: `${COLORS[i].label} (réf)`, data: monthsSubsampled.map((m) => rawData[m] ?? null), borderColor: c.hex, backgroundColor: 'transparent', stepped: 'after', ...cmpBase };
+    }) : [];
+
     return {
-      mensualite: {
-        labels: xMonths,
-        datasets: mensualiteLines,
-      },
-      capital: {
-        labels: xMonths,
-        datasets: capitalLines,
-      },
+      mensualite: { labels: xMonths, datasets: [...mensualiteLines, ...cmpMensualiteLines] },
+      capital:    { labels: xMonths, datasets: [...capitalLines,    ...cmpCapitalLines] },
       patrimoine: {
         labels: years.map((y) => `${y} an${y > 1 ? 's' : ''}`),
-        datasets: patrimoineLines,
+        datasets: [...patrimoineLines, ...cmpPatrimoineLines],
       },
       couts: {
         labels: ['💸 Facture banque', '📈 Épargne finale', '✅ Gain net'],
-        datasets: COLORS.map((c, i) => ({
-          label: c.label,
-          data: [
-            results[i].coutInteretsAssurance,
-            results[i].valPatrimoineFinancier,
-            results[i].valPatrimoineFinancier - results[i].coutInteretsAssurance,
-          ],
-          backgroundColor: c.hex + 'cc',
-          borderRadius: 6,
-        })),
+        datasets: [
+          ...COLORS.map((c, i) => ({
+            label: c.label,
+            data: [results[i].coutInteretsAssurance, results[i].valPatrimoineFinancier, results[i].valPatrimoineFinancier - results[i].coutInteretsAssurance],
+            backgroundColor: c.hex + 'cc', borderRadius: 6,
+          })),
+          ...(compareSimResults ? COLORS_PASTEL.map((c, i) => ({
+            label: `${COLORS[i].label} (réf)`,
+            data: [compareSimResults[i].coutInteretsAssurance, compareSimResults[i].valPatrimoineFinancier, compareSimResults[i].valPatrimoineFinancier - compareSimResults[i].coutInteretsAssurance],
+            backgroundColor: c.hex + 'bb', borderRadius: 6,
+          })) : []),
+        ],
       },
-      mensualiteRessentie: {
-        labels: xMonths,
-        datasets: mensualiteRessentieLines,
-      },
+      mensualiteRessentie: { labels: xMonths, datasets: [...mensualiteRessentieLines, ...cmpRessentieLines] },
     };
-  }, [results, params, duration, rendement, rate]);
+  }, [results, params, duration, rendement, rate, compareSimResults, compareSimParams]);
 
   const fraisTotal = price * (fraisNotaire / 100) + fraisAgence + fraisAutres;
   const totalAcquisition = price + fraisTotal;
