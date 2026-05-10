@@ -240,6 +240,7 @@ const DEFAULT_PARAMS = {
   depensesFamille: 2500, rendement: 4.5,
   prixParcelle: 80000, moisVente: 18, raMode: 'mensualite',
   matelas: 20000, travaux: 30000, epargneTotale: 200000,
+  parcelleActive: true,
 };
 
 function computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income) {
@@ -288,6 +289,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const [prixParcelle, setPrixParcelle] = useState(80000);
   const [moisVente, setMoisVente] = useState(18);
   const [raMode, setRaMode] = useState('mensualite');
+  const [parcelleActive, setParcelleActive] = useState(true);
 
   const [matelas, setMatelas] = useState(20000);
   const [travaux, setTravaux] = useState(30000);
@@ -303,6 +305,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     setRendement(p.rendement); setPrixParcelle(p.prixParcelle); setMoisVente(p.moisVente);
     setRaMode(p.raMode); setMatelas(p.matelas); setTravaux(p.travaux);
     setEpargneTotale(p.epargneTotale);
+    if (p.parcelleActive !== undefined) setParcelleActive(p.parcelleActive);
     if (newApports) setApports(newApports);
   };
 
@@ -384,9 +387,11 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const params = useMemo(() => ({
     price, fraisNotaire, fraisAgence, fraisAutres,
     rate, duration, insurance, income, depensesFamille, rendement,
-    prixParcelle, moisVente, raMode,
+    prixParcelle: parcelleActive ? prixParcelle : 0,
+    moisVente, raMode,
     matelas, travaux, epargneTotale,
-  }), [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale]);
+    parcelleActive,
+  }), [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale, parcelleActive]);
 
   const results = useMemo(() => apports.map((a) => computeScenario(params, a)), [params, apports]);
 
@@ -735,31 +740,42 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
 
       {/* Parcelle + Patrimoine */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 space-y-5">
-          <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Parcelle Divisible</h3>
-          <Slider label="Prix vente parcelle" value={prixParcelle} min={0} max={150000} step={5000} onChange={setPrixParcelle} format={(v) => `${fmt(v)} €`} />
-          <Slider label="Mois prévisionnel de la vente" value={moisVente} min={0} max={60} step={1} onChange={setMoisVente} format={(v) => `M+${v}`} />
-          <div className="space-y-2">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Que faire avec l'argent de la vente ?</p>
-            <div className="flex flex-col gap-2">
-              {[
-                ['mensualite', '📉 Rembourser → baisser la mensualité'],
-                ['duree', '⏱ Rembourser → raccourcir la durée'],
-                ['investir', '📈 Investir → placer et laisser fructifier'],
-              ].map(([val, lbl]) => (
-                <button
-                  key={val}
-                  onClick={() => setRaMode(val)}
-                  className={cn(
-                    'w-full py-2.5 px-3 rounded-xl text-[10px] font-black text-left transition-all',
-                    raMode === val
-                      ? 'bg-amber-500 text-white shadow'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  )}
-                >
-                  {lbl}
-                </button>
-              ))}
+        <div className={cn('bg-white rounded-[2rem] border shadow-sm p-6 space-y-5 transition-all', parcelleActive ? 'border-amber-100' : 'border-slate-100')}>
+          <div className="flex items-center justify-between">
+            <h3 className={cn('text-[10px] font-black uppercase tracking-widest transition-colors', parcelleActive ? 'text-amber-500' : 'text-slate-300')}>
+              Parcelle Divisible
+            </h3>
+            <button
+              onClick={() => setParcelleActive(v => !v)}
+              className={cn('w-10 h-5 rounded-full transition-all relative shrink-0', parcelleActive ? 'bg-amber-500' : 'bg-slate-200')}
+              title={parcelleActive ? 'Désactiver la parcelle' : 'Activer la parcelle'}
+            >
+              <span className={cn('absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200', parcelleActive ? 'left-5' : 'left-0.5')} />
+            </button>
+          </div>
+          <div className={cn('space-y-5 transition-opacity duration-200', !parcelleActive && 'opacity-30 pointer-events-none')}>
+            <Slider label="Prix vente parcelle" value={prixParcelle} min={0} max={150000} step={5000} onChange={setPrixParcelle} format={(v) => `${fmt(v)} €`} />
+            <Slider label="Mois prévisionnel de la vente" value={moisVente} min={0} max={60} step={1} onChange={setMoisVente} format={(v) => `M+${v}`} />
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Que faire avec l'argent de la vente ?</p>
+              <div className="flex flex-col gap-2">
+                {[
+                  ['mensualite', '📉 Rembourser → baisser la mensualité'],
+                  ['duree', '⏱ Rembourser → raccourcir la durée'],
+                  ['investir', '📈 Investir → placer et laisser fructifier'],
+                ].map(([val, lbl]) => (
+                  <button
+                    key={val}
+                    onClick={() => setRaMode(val)}
+                    className={cn(
+                      'w-full py-2.5 px-3 rounded-xl text-[10px] font-black text-left transition-all',
+                      raMode === val ? 'bg-amber-500 text-white shadow' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    )}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

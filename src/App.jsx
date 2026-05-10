@@ -156,7 +156,10 @@ const HelpTip = ({ title, content, position = 'top', align = 'center' }) => (
 
 function App() {
   const getInitialPage = () => {
-    if (typeof window !== 'undefined' && window.location.pathname === '/recherche') return 'biens';
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname === '/recherche') return 'biens';
+      if (window.location.pathname === '/analyse') return 'analyse';
+    }
     return 'dashboard';
   };
   
