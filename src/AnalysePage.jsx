@@ -13,6 +13,24 @@ import { twMerge } from 'tailwind-merge';
 
 function cn(...i) { return twMerge(clsx(i)); }
 
+function ChartHelp({ title, children, className = 'space-y-2' }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-slate-50 rounded-xl overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-100 transition-colors"
+        onClick={() => setOpen(v => !v)}
+      >
+        <span className="text-[10px] font-black text-slate-600">{title}</span>
+        {open
+          ? <ChevronUp size={12} className="text-slate-400 shrink-0" />
+          : <ChevronDown size={12} className="text-slate-400 shrink-0" />}
+      </button>
+      {open && <div className={cn('px-3 pb-3', className)}>{children}</div>}
+    </div>
+  );
+}
+
 const fmt = (n) => Math.round(n).toLocaleString('fr-FR');
 const fmtK = (n) => (Math.abs(n) >= 1000 ? (n / 1000).toFixed(0) + ' k' : Math.round(n).toString()) + ' €';
 
@@ -949,34 +967,31 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
             <div className="space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">1 · Mensualité dans le temps</p>
               <div className="h-56"><Line data={chartData.mensualite} options={{ ...CHART_OPTIONS_BASE, plugins: { ...CHART_OPTIONS_BASE.plugins, annotation: {} } }} /></div>
-              <div className="bg-slate-50 rounded-xl p-3 space-y-2">
-                <p className="text-[10px] font-black text-slate-700">Ce que montre cette courbe</p>
+              <ChartHelp title="Ce que montre cette courbe">
                 <div className="space-y-1.5 text-[10px] text-slate-500 leading-relaxed">
                   <p>C'est <span className="font-bold text-slate-700">ce qui sort de votre compte bancaire chaque mois</span> pour rembourser la banque — capital + intérêts + assurance. Techniquement appelée "annuité constante", elle ne change pas pendant toute la durée du crédit.</p>
                   <p>La courbe est en marches d'escalier car cette somme est fixe : elle reste au même niveau des années entières, puis <span className="font-bold text-slate-700">descend d'un coup quand vous remboursez par anticipation</span> avec la vente de la parcelle.</p>
                   <p>👉 Comparez la hauteur du premier palier : c'est votre engagement financier mensuel dès le premier jour. Plus il est bas, plus vous avez de marge pour vivre, épargner ou faire face aux imprévus.</p>
                 </div>
-              </div>
+              </ChartHelp>
             </div>
 
             <div className="space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">2 · Capital restant dû</p>
               <div className="h-56"><Line data={chartData.capital} options={CHART_OPTIONS_BASE} /></div>
-              <div className="bg-slate-50 rounded-xl p-3 space-y-2">
-                <p className="text-[10px] font-black text-slate-700">Ce que montre cette courbe</p>
+              <ChartHelp title="Ce que montre cette courbe">
                 <div className="space-y-1.5 text-[10px] text-slate-500 leading-relaxed">
                   <p>C'est <span className="font-bold text-slate-700">ce que vous devez encore à la banque</span> si vous remboursiez tout demain. Au départ, vous devez presque autant que ce que vous avez emprunté. Ça descend lentement les premières années — parce que la majorité de vos mensualités part en intérêts, pas en remboursement réel.</p>
                   <p>La chute brutale sur la courbe, c'est <span className="font-bold text-slate-700">le jour où vous vendez la parcelle et remboursez une grosse somme d'un coup</span>. D'un trait, votre dette chute — et avec elle, soit vos mensualités, soit la durée restante.</p>
                   <p>👉 Un scénario avec moins d'apport part plus haut sur cette courbe (plus de dette), mais profite aussi d'un saut plus marqué au moment du remboursement anticipé.</p>
                 </div>
-              </div>
+              </ChartHelp>
             </div>
 
             <div className="space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">3 · Évolution patrimoine financier</p>
               <div className="h-56"><Line data={chartData.patrimoine} options={CHART_OPTIONS_BASE} /></div>
-              <div className="bg-slate-50 rounded-xl p-3 space-y-3">
-                <p className="text-[10px] font-black text-slate-700">Comment ce capital grossit chaque mois</p>
+              <ChartHelp title="Comment ce capital grossit chaque mois" className="space-y-3">
                 <div className="space-y-1.5 text-[10px] text-slate-500 leading-relaxed">
                   <p>Chaque mois, votre capital augmente de <span className="font-bold text-slate-700">deux sources</span> :</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1026,33 +1041,31 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
                   <p>👉 <span className="font-bold text-slate-700">Les intérêts composés font boule de neige :</span> plus le capital est grand, plus les intérêts mensuels sont grands, plus le capital grossit vite. C'est pour ça que la courbe s'accélère avec le temps plutôt que d'être une ligne droite.</p>
                   <p>👉 <span className="font-bold text-slate-700">Les courbes qui partent le plus haut = moins d'apport mis dans la maison</span> = plus de cash conservé et placé dès le départ. Chaque euro supplémentaire en apport, c'est un euro de moins qui travaille pour vous pendant 25 ans.</p>
                 </div>
-              </div>
+              </ChartHelp>
             </div>
 
             <div className="space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">4 · Coûts comparés</p>
               <div className="h-56"><Bar data={chartData.couts} options={{ ...CHART_OPTIONS_BASE, scales: { ...CHART_OPTIONS_BASE.scales, x: { ...CHART_OPTIONS_BASE.scales.x, ticks: { font: { size: 8 } } } } }} /></div>
-              <div className="bg-slate-50 rounded-xl p-3 space-y-2">
-                <p className="text-[10px] font-black text-slate-700">Ce que montre ce graphique</p>
+              <ChartHelp title="Ce que montre ce graphique">
                 <div className="space-y-1.5 text-[10px] text-slate-500 leading-relaxed">
                   <p><span className="font-black text-slate-700">💸 Facture banque</span> — tout ce que vous avez payé à la banque en intérêts et assurance, au-delà du capital emprunté. C'est de l'argent définitivement perdu, qui ne vous appartient plus.</p>
                   <p><span className="font-black text-slate-700">📈 Épargne finale</span> — la valeur de votre épargne à la fin des 25 ans : le cash que vous n'avez pas mis en apport, placé dès le départ, augmenté chaque mois de ce que vous réussissez à mettre de côté.</p>
                   <p><span className="font-black text-slate-700">✅ Gain net</span> — épargne finale moins facture banque. C'est votre bilan financier réel hors bien immobilier. <span className="font-bold text-slate-700">C'est la barre à maximiser.</span> Si un scénario avec moins d'apport a un gain net plus élevé, c'est que votre placement rapporte plus que ce que vous coûte le crédit — le levier joue en votre faveur.</p>
                 </div>
-              </div>
+              </ChartHelp>
             </div>
 
             <div className="lg:col-span-2 space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">5 · Mensualité ressentie (après rendement placement)</p>
               <div className="h-56"><Line data={chartData.mensualiteRessentie} options={CHART_OPTIONS_BASE} /></div>
-              <div className="bg-slate-50 rounded-xl p-3 space-y-2">
-                <p className="text-[10px] font-black text-slate-700">Ce que montre cette courbe</p>
+              <ChartHelp title="Ce que montre cette courbe">
                 <div className="space-y-1.5 text-[10px] text-slate-500 leading-relaxed">
                   <p>Votre crédit vous coûte 1 800 € par mois sur le papier. Mais en parallèle, votre épargne placée génère chaque mois des intérêts. <span className="font-bold text-slate-700">La mensualité ressentie, c'est ce que le crédit vous coûte vraiment</span> une fois que vous déduisez ces gains : mensualité brute − revenus du placement.</p>
                   <p>Au départ, l'écart est faible (votre placement vient juste de démarrer). Mais les intérêts s'accumulent, le capital grossit, et les revenus mensuels du placement augmentent chaque année. <span className="font-bold text-slate-700">La courbe descend en continu</span> — là où la mensualité brute restait plate sur un palier.</p>
                   <p>👉 Si la courbe atteint zéro, votre placement couvre entièrement votre remboursement : votre crédit s'autofinance. C'est le scénario idéal. Comparez à quelle vitesse chaque scénario descend vers zéro — c'est ça, le vrai coût de la vie sur 25 ans.</p>
                 </div>
-              </div>
+              </ChartHelp>
             </div>
 
           </div>
