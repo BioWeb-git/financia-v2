@@ -6,6 +6,7 @@ import {
   ArrowUpRight, ArrowDownRight, X, Search
 } from 'lucide-react';
 import BienPage from './BienPage';
+import AnalysePage from './AnalysePage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title, BarElement, Filler } from 'chart.js';
 import { Doughnut, Line, Bar } from 'react-chartjs-2';
@@ -174,13 +175,14 @@ function App() {
 
   const navigateTo = (page) => {
     setActivePage(page);
-    window.history.pushState({}, '', page === 'biens' ? '/recherche' : '/dashboard');
+    const urls = { biens: '/recherche', analyse: '/analyse', dashboard: '/dashboard' };
+    window.history.pushState({}, '', urls[page] || '/dashboard');
   };
 
   // 1. Définition des valeurs "Usine" (si rien n'est sauvegardé)
   const FACTORY_SETTINGS = {
-    incomeJess: 3200,
-    incomeRenaud: 1314,
+    incomeJess: 4200,
+    incomeRenaud: 1600,
     rent: 1020,
     epargneTotale: 200000,
     jessSalaire: { salaire: 3200, treizieme: 3200, prime: 1300, bonus: 4000, interessement: 1000, participation: 2500, bonusActif: false },
@@ -211,6 +213,7 @@ function App() {
   const [globalSettings, setGlobalSettings] = useState(initialState?.globalSettings || FACTORY_SETTINGS);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [currentScenarioId, setCurrentScenarioId] = useState(initialState?.currentScenarioId || 0);
+  const [compareWithId, setCompareWithId] = useState(null);
   const [renaudStats, setRenaudStats] = useState(initialState?.renaudStats || { ...FACTORY_SETTINGS.renaudBnc, monthsPassed: 4 });
   const [jessStats, setJessStats] = useState(initialState?.jessStats || { ...FACTORY_SETTINGS.jessSalaire });
   const [isJessCalcOpen, setIsJessCalcOpen] = useState(false);
@@ -220,12 +223,12 @@ function App() {
     if (initialState?.scenarios) return initialState.scenarios;
     return [
       { 
-        id: 0, name: "🏠 Actuel (Locataire)", price: 0, surface: 0, apport: 0, rate: 0, insurance: 0, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.5,
+        id: 0, name: "🏠 Actuel (Locataire)", price: 0, surface: 0, apport: 0, rate: 0, insurance: 0, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.28, agencyRate: 2.8,
         rent: FACTORY_SETTINGS.rent, income: FACTORY_SETTINGS.incomeJess, income2: FACTORY_SETTINGS.incomeRenaud,
         budget: { ...FACTORY_SETTINGS.budget } 
       },
       { 
-        id: 1, name: "Option A", price: 450000, surface: 100, apport: 100000, rate: 3.8, insurance: 0.3, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.5,
+        id: 1, name: "Option A", price: 430000, surface: 120, apport: 165000, rate: 3.8, insurance: 0.5, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.28, agencyRate: 2.8, brokerFee: 4120,
         rent: FACTORY_SETTINGS.rent, income: FACTORY_SETTINGS.incomeJess, income2: FACTORY_SETTINGS.incomeRenaud,
         budget: { ...FACTORY_SETTINGS.budget } 
       }
@@ -384,18 +387,19 @@ function App() {
       // Revenu utilisé pour le budget (sliders)
       const projectedIncome = (s.income || 0) + (s.income2 || 0);
       
-      const notaryFees = s.price * ((s.notaryRate || 7.5) / 100);
+      const agencyFees = s.price * ((s.agencyRate || 0) / 100);
+      const notaryFees = s.price * ((s.notaryRate || 7.28) / 100);
       
-      // Frais annexes (Dossier, Garantie, Courtage)
-      const bankFee = s.bankFee ?? 1000;
-      const initialTotal = s.price + notaryFees + (s.travaux || 0) + bankFee;
-      const initialLoanNeeded = Math.max(0, initialTotal - s.apport);
-      
-      // Estimation automatique si non définie manuellement
-      const guaranteeFee = s.guaranteeFee ?? (initialLoanNeeded * 0.011);
-      const brokerFee = s.brokerFee ?? (initialLoanNeeded * 0.012);
-      
-      const totalAcquisition = initialTotal + guaranteeFee + brokerFee;
+      // Frais annexes (Dossier, Garantie, Courtage) — 0 si pas de bien
+      const bankFee = s.price > 0 ? (s.bankFee ?? 1500) : 0;
+      const brokerFee = s.price > 0 ? (s.brokerFee ?? 4100) : 0;
+      const initialTotal = s.price + agencyFees + notaryFees + (s.travaux || 0) + bankFee + brokerFee;
+      const loanBeforeGuarantee = Math.max(0, initialTotal - s.apport);
+
+      // Estimation automatique (0.869% du prêt avant garantie pour simuler ~0.86% du prêt final)
+      const guaranteeFee = s.price > 0 ? (s.guaranteeFee ?? (loanBeforeGuarantee * 0.00869)) : 0;
+
+      const totalAcquisition = initialTotal + guaranteeFee;
       const loanAmount = Math.max(0, totalAcquisition - s.apport);
       
       const totalBudget = Object.entries(s.budget).reduce((acc, [key, val]) => {
@@ -430,20 +434,28 @@ function App() {
       const factor = 1 / denominator;
       const loanCapacity = maxMonthly * factor;
       const monthlyExceeding = Math.max(0, payment.total - maxMonthly);
-      const loanToReduce = monthlyExceeding * factor;
+      
+      // On ajuste le montant à réduire par le ratio de garantie (1.00869) 
+      // car chaque euro d'apport en moins réduit aussi la garantie.
+      const isGuaranteeDynamic = s.guaranteeFee === undefined || s.guaranteeFee === null;
+      const guaranteeRatio = isGuaranteeDynamic ? 1.00869 : 1;
+      const loanToReduce = (monthlyExceeding * factor) / guaranteeRatio;
 
       const inflationData = Array.from({ length: 6 }, (_, i) => ({
         year: i * 5,
         realValue: calculateInflationImpact(payment.total, inflationRate, i * 5)
       }));
 
-      const minApportAt35 = Math.max(0, totalAcquisition - loanCapacity);
+      const minApportAt35 = isGuaranteeDynamic 
+        ? Math.max(0, initialTotal - loanCapacity / 1.00869)
+        : Math.max(0, totalAcquisition - loanCapacity);
 
       return { 
         ...s, 
         projectedIncome,
         bankIncome,
         totalIncome: bankIncome,
+        agencyFees,
         notaryFees, 
         loanAmount, 
         payment, 
@@ -457,8 +469,9 @@ function App() {
         bankFee,
         guaranteeFee,
         brokerFee,
+        totalAcquisition,
         requiredExtraApport: loanToReduce, 
-        priceNegotiation: loanToReduce / (1 + (s.notaryRate || 7.5) / 100), 
+        priceNegotiation: loanToReduce / (1 + (s.notaryRate || 7.28) / 100), 
         totalBudget 
       };
     });
@@ -482,11 +495,15 @@ function App() {
         income: globalSettings.incomeJess,
         income2: globalSettings.incomeRenaud,
         rent: globalSettings.rent,
-        price: s.id === 0 ? 0 : 450000,
-        surface: s.id === 0 ? 0 : 100,
-        apport: s.id === 0 ? 0 : 100000,
+        price: s.id === 0 ? 0 : 430000,
+        surface: s.id === 0 ? 0 : 120,
+        apport: s.id === 0 ? 0 : 165000,
         rate: s.id === 0 ? 0 : 3.8,
+        insurance: s.id === 0 ? 0 : 0.5,
         duration: 25,
+        agencyRate: 2.8,
+        notaryRate: 7.28,
+        brokerFee: s.id === 0 ? undefined : 4120,
         budget: { ...globalSettings.budget }
       };
     }));
@@ -500,6 +517,25 @@ function App() {
     payment: currentResults.payment.total - baselineResults.payment.total,
     rav: currentResults.rav - baselineResults.rav,
     epargne: currentScenario.budget.epargne - baselineResults.budget.epargne
+  };
+
+  const compareResults = compareWithId !== null ? allResults.find(r => r.id === compareWithId) ?? null : null;
+  const compareScenario = compareWithId !== null ? scenarios.find(s => s.id === compareWithId) ?? null : null;
+
+  const DeltaBadge = ({ current, compare, unit = '€', lowerIsBetter = false, isPercent = false }) => {
+    if (compare === undefined || compare === null) return null;
+    const d = current - compare;
+    if (Math.abs(d) < 0.5) return null;
+    const isPositive = lowerIsBetter ? d < 0 : d > 0;
+    const sign = d > 0 ? '+' : '';
+    const formatted = isPercent
+      ? `${sign}${d.toFixed(2)} %`
+      : `${sign}${Math.round(d).toLocaleString()} ${unit}`;
+    return (
+      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+        {formatted}
+      </span>
+    );
   };
 
   const [newExpense, setNewExpense] = useState({ label: '', amount: '' });
@@ -559,7 +595,18 @@ function App() {
   }, [isResizing]);
 
   const updateCurrentScenario = (field, value) => {
-    setScenarios(prev => prev.map(s => s.id === currentScenarioId ? { ...s, [field]: value } : s));
+    setScenarios(prev => prev.map(s => {
+      if (s.id !== currentScenarioId) return s;
+      
+      const newS = { ...s, [field]: value };
+      
+      // Auto-recalc guarantee if base parameters change
+      if (['price', 'apport', 'agencyRate', 'notaryRate', 'travaux'].includes(field)) {
+        newS.guaranteeFee = undefined;
+      }
+      
+      return newS;
+    }));
   };
 
   const handleSaveName = () => {
@@ -646,8 +693,19 @@ function App() {
             <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Recherche Biens</span>
           </button>
 
+          <button
+            onClick={() => navigateTo('analyse')}
+            className={cn(
+              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative",
+              activePage === 'analyse' ? "bg-brand-primary text-white" : "text-slate-500 hover:bg-slate-800 hover:text-white"
+            )}
+          >
+            <TrendingUp size={20} />
+            <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Analyse Comparative</span>
+          </button>
+
           <div className="w-8 h-px bg-slate-800 mx-auto" />
-          
+
           <button onClick={() => setIsSettingsOpen(true)} className="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-white transition-all group relative">
             <Settings size={20} />
             <span className="absolute left-16 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">Paramètres Globaux</span>
@@ -661,7 +719,7 @@ function App() {
             <div className="bg-white/80 backdrop-blur-xl border-t-4 border-rose-500 shadow-2xl rounded-[2rem] p-6 flex items-center gap-6 overflow-hidden relative">
               <div className="p-4 bg-rose-500 text-white rounded-2xl animate-bounce"><AlertTriangle size={24} /></div>
               <div className="flex-1">
-                <h4 className="text-sm font-black text-rose-900 uppercase">Dossier Bloqué à {currentResults.debtRatio.toFixed(1)}%</h4>
+                <h4 className="text-sm font-black text-rose-900 uppercase">Dossier Bloqué à {currentResults.debtRatio.toFixed(2)}%</h4>
                 <p className="text-xs text-rose-700">Il manque <strong>{Math.round(currentResults.requiredExtraApport).toLocaleString()} €</strong> d'apport.</p>
               </div>
               <button onClick={() => updateCurrentScenario('apport', Math.round(currentResults.minApportAt35))} className="bg-rose-500 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase shadow-md hover:bg-rose-600 transition-all">Appliquer l'apport</button>
@@ -672,6 +730,8 @@ function App() {
 
       {activePage === 'biens' ? (
         <BienPage />
+      ) : activePage === 'analyse' ? (
+        <AnalysePage currentScenario={currentScenario} globalSettings={globalSettings} />
       ) : (
         <>
           <main className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -684,9 +744,30 @@ function App() {
               </a>
             )}
           </div>
-          <button onClick={() => openModal('create')} className="bg-brand-primary text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all flex items-center gap-2">
-            <Plus size={14} /> Nouveau Scénario
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
+              <ArrowLeftRight size={12} className="text-slate-400 shrink-0" />
+              <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer avec</span>
+              <select
+                value={compareWithId ?? ''}
+                onChange={e => setCompareWithId(e.target.value === '' ? null : Number(e.target.value))}
+                className="bg-transparent text-[11px] font-black text-slate-700 outline-none cursor-pointer max-w-[140px]"
+              >
+                <option value="">Aucun</option>
+                {scenarios.filter(s => s.id !== currentScenarioId).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {compareWithId !== null && (
+                <button onClick={() => setCompareWithId(null)} className="text-slate-300 hover:text-slate-500 transition-colors ml-1">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <button onClick={() => openModal('create')} className="bg-brand-primary text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all flex items-center gap-2">
+              <Plus size={14} /> Nouveau Scénario
+            </button>
+          </div>
         </header>
 
         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
@@ -694,14 +775,15 @@ function App() {
           <div className="grid grid-cols-5 divide-x divide-slate-100">
             <div className="pr-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Prix du Bien</p>
-              <div className="flex items-baseline gap-1">
-                <input 
+              <div className="flex items-baseline gap-1 flex-wrap">
+                <input
                   type="number"
                   className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-24"
                   value={currentScenario.price}
                   onChange={(e) => updateCurrentScenario('price', Number(e.target.value))}
                 />
                 <span className="text-sm font-black text-slate-400">€</span>
+                <DeltaBadge current={currentScenario.price} compare={compareScenario?.price} />
               </div>
             </div>
             <div className="px-4">
@@ -723,14 +805,15 @@ function App() {
             </div>
             <div className="px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Votre Apport</p>
-              <div className="flex items-baseline gap-1">
-                <input 
+              <div className="flex items-baseline gap-1 flex-wrap">
+                <input
                   type="number"
                   className="bg-transparent border-none p-0 text-xl font-black text-brand-secondary focus:ring-0 w-24"
                   value={currentScenario.apport}
                   onChange={(e) => updateCurrentScenario('apport', Number(e.target.value))}
                 />
                 <span className="text-sm font-black text-slate-400">€</span>
+                <DeltaBadge current={currentScenario.apport} compare={compareScenario?.apport} />
               </div>
             </div>
             {(() => {
@@ -741,9 +824,14 @@ function App() {
                     Épargne Restante
                     <HelpTip title="Épargne Restante" content="Épargne totale disponible moins l'apport engagé dans ce scénario. Représente la réserve de liquidités conservée après l'achat." position="bottom" />
                   </div>
-                  <p className={`text-xl font-black leading-tight ${restant >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                    {Math.round(restant).toLocaleString()}&nbsp;€
-                  </p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className={`text-xl font-black leading-tight ${restant >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                      {Math.round(restant).toLocaleString()}&nbsp;€
+                    </p>
+                    {compareScenario && (
+                      <DeltaBadge current={restant} compare={(globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - compareScenario.apport} lowerIsBetter={false} />
+                    )}
+                  </div>
                   <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
                     sur {(globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale).toLocaleString()} € total
                   </p>
@@ -762,54 +850,107 @@ function App() {
           </div>
           <div className="border-t border-slate-100" />
           {/* Ligne 2 : paramètres du prêt */}
-          <div className="grid grid-cols-3 divide-x divide-slate-100">
+          <div className="grid grid-cols-4 divide-x divide-slate-100">
             <div className="pr-4">
               <p className="text-[10px] font-black text-emerald-500 uppercase mb-1">Épargne ({currentScenario.duration} ans)</p>
-              <p className="text-xl font-black text-emerald-600 leading-tight">
-                {Math.round((typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount) * 12 * currentScenario.duration).toLocaleString()}&nbsp;€
-              </p>
+              <div className="flex items-baseline gap-1 flex-wrap">
+                <p className="text-xl font-black text-emerald-600 leading-tight">
+                  {Math.round((typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount) * 12 * currentScenario.duration).toLocaleString()}&nbsp;€
+                </p>
+                {compareScenario && (
+                  <DeltaBadge
+                    current={(typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount) * 12 * currentScenario.duration}
+                    compare={(typeof compareScenario.budget.epargne === 'number' ? compareScenario.budget.epargne : compareScenario.budget.epargne.amount) * 12 * compareScenario.duration}
+                  />
+                )}
+              </div>
               <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
                 {Math.round(typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount).toLocaleString()}€ x 12 x {currentScenario.duration} ans
               </p>
             </div>
             <div className="px-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                Budget Mensuel
+                <HelpTip title="Budget Mensuel Détaillé" content="Somme de tous les postes du budget mensuel détaillé, hors épargne." position="bottom" />
+              </p>
+              <div className="flex items-baseline gap-1 flex-wrap">
+                <p className="text-xl font-black text-slate-900">{Math.round(currentResults.totalBudget).toLocaleString()}&nbsp;€</p>
+                <DeltaBadge current={currentResults.totalBudget} compare={compareResults?.totalBudget} lowerIsBetter={true} />
+              </div>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">hors épargne</p>
+            </div>
+            <div className="px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Taux Fixe</p>
-              <p className="text-xl font-black text-slate-900">{currentScenario.rate} %</p>
+              <div className="flex items-baseline gap-1 flex-wrap">
+                <p className="text-xl font-black text-slate-900">{currentScenario.rate.toFixed(2)} %</p>
+                {compareScenario && <DeltaBadge current={currentScenario.rate} compare={compareScenario.rate} lowerIsBetter={true} isPercent={true} />}
+              </div>
             </div>
             <div className="px-4">
               <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Durée</p>
-              <p className="text-xl font-black text-slate-900">{currentScenario.duration} ans</p>
+              <div className="flex items-baseline gap-1 flex-wrap">
+                <p className="text-xl font-black text-slate-900">{currentScenario.duration} ans</p>
+                {compareScenario && <DeltaBadge current={currentScenario.duration} compare={compareScenario.duration} unit="ans" lowerIsBetter={false} />}
+              </div>
             </div>
           </div>
         </div>
 
         {/* LIGNE 1: INDICATEURS CLÉS (KPIs) */}
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-3 xl:grid-cols-6 gap-6">
           <div className="glass-card p-6 rounded-[2rem]">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Capacité d'Emprunt Max</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-black text-slate-900">{Math.round(currentResults.loanCapacity).toLocaleString()} €</p>
-              <span className="text-[10px] font-bold text-slate-500">à 35%</span>
+            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Opération</p>
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</p>
+              <DeltaBadge current={currentResults.totalAcquisition} compare={compareResults?.totalAcquisition} lowerIsBetter={true} />
+            </div>
+          </div>
+          <div className="glass-card p-6 rounded-[2rem]">
+            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Montant Emprunté</p>
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <p className="text-2xl font-black text-slate-900">{Math.round(currentResults.loanAmount).toLocaleString()} €</p>
+              <DeltaBadge current={currentResults.loanAmount} compare={compareResults?.loanAmount} lowerIsBetter={true} />
+            </div>
+          </div>
+          <div className="glass-card p-6 rounded-[2rem]">
+            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Prix du Crédit</p>
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <p className="text-2xl font-black text-rose-500">{Math.round(currentResults.cost.totalInterests + currentResults.cost.totalInsurance).toLocaleString()} €</p>
+              <DeltaBadge current={currentResults.cost.totalInterests + currentResults.cost.totalInsurance} compare={compareResults ? compareResults.cost.totalInterests + compareResults.cost.totalInsurance : undefined} lowerIsBetter={true} />
+            </div>
+            <div className="flex gap-2 mt-1">
+              <span className="text-[8px] font-bold text-slate-400">{Math.round(currentResults.cost.totalInterests).toLocaleString()} € intérêts</span>
+              <span className="text-[8px] font-bold text-slate-300">·</span>
+              <span className="text-[8px] font-bold text-slate-400">{Math.round(currentResults.cost.totalInsurance).toLocaleString()} € assurance</span>
             </div>
           </div>
           <div className="glass-card p-6 rounded-[2rem]">
             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Mensualité Totale</p>
-            <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.payment.total).toLocaleString()} €</p>
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.payment.total).toLocaleString()} €</p>
+              <DeltaBadge current={currentResults.payment.total} compare={compareResults?.payment.total} lowerIsBetter={true} />
+            </div>
           </div>
           <div className="glass-card p-6 rounded-[2rem]">
             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Reste à Vivre (RAV)</p>
-            <p className={cn("text-2xl font-black", currentResults.rav > 500 ? "text-emerald-500" : "text-rose-500")}>
-              {Math.round(currentResults.rav).toLocaleString()} €
-            </p>
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <p className={cn("text-2xl font-black", currentResults.rav > 500 ? "text-emerald-500" : "text-rose-500")}>
+                {Math.round(currentResults.rav).toLocaleString()} €
+              </p>
+              <DeltaBadge current={currentResults.rav} compare={compareResults?.rav} lowerIsBetter={false} />
+            </div>
           </div>
           <div className="glass-card p-6 rounded-[2rem]">
             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Taux d'Endettement</p>
             <div className="flex items-center gap-3">
-               <p className={cn("text-2xl font-black", currentResults.debtRatio > 35 ? "text-rose-500" : "text-slate-900")}>
-                 {currentResults.debtRatio.toFixed(1)} %
-               </p>
+               <div className="flex items-baseline gap-1 flex-wrap">
+                 <p className={cn("text-2xl font-black", currentResults.debtRatio > 35 ? "text-rose-500" : "text-slate-900")}>
+                   {currentResults.debtRatio.toFixed(2)} %
+                 </p>
+                 <DeltaBadge current={currentResults.debtRatio} compare={compareResults?.debtRatio} lowerIsBetter={true} isPercent={true} />
+               </div>
                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                 <div 
+                 <div
                    className={cn("h-full transition-all duration-500", currentResults.debtRatio > 35 ? "bg-rose-500" : "bg-emerald-500")}
                    style={{ width: `${Math.min(100, currentResults.debtRatio)}%` }}
                  />
@@ -1132,10 +1273,29 @@ function App() {
                 </div>
                 <div className="pt-2">
                   <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase block">Notaire ({currentScenario.notaryRate || 7.5}%)</label>
-                    <button onClick={() => updateCurrentScenario('notaryRate', 7.5)} className="p-1 text-slate-600 hover:text-white transition-colors"><RotateCcw size={10} /></button>
+                    <label className="text-[10px] font-black text-slate-500 uppercase block">Agence</label>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateCurrentScenario('agencyRate', Math.max(0, (currentScenario.agencyRate ?? 2.8) - 0.1))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                      <input type="number" step="0.1" value={currentScenario.agencyRate ?? 2.8} onChange={(e) => updateCurrentScenario('agencyRate', Number(e.target.value))} className="w-12 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                      <button onClick={() => updateCurrentScenario('agencyRate', Math.min(10, (currentScenario.agencyRate ?? 2.8) + 0.1))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                      <span className="text-[9px] text-slate-500 ml-0.5">%</span>
+                      <button onClick={() => updateCurrentScenario('agencyRate', 2.8)} className="p-1 text-slate-600 hover:text-white transition-colors ml-1"><RotateCcw size={10} /></button>
+                    </div>
                   </div>
-                  <input type="range" min="2" max="10" step="0.5" value={currentScenario.notaryRate || 7.5} onChange={(e) => updateCurrentScenario('notaryRate', Number(e.target.value))} className="w-full h-1 accent-white cursor-pointer" />
+                  <input type="range" min="0" max="10" step="0.1" value={currentScenario.agencyRate ?? 2.8} onChange={(e) => updateCurrentScenario('agencyRate', Number(e.target.value))} className="w-full h-1 accent-emerald-500 cursor-pointer" />
+                </div>
+                <div className="pt-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase block">Notaire</label>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateCurrentScenario('notaryRate', Math.max(0, (currentScenario.notaryRate || 7.28) - 0.01))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                      <input type="number" step="0.01" value={currentScenario.notaryRate || 7.28} onChange={(e) => updateCurrentScenario('notaryRate', Number(e.target.value))} className="w-14 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                      <button onClick={() => updateCurrentScenario('notaryRate', Math.min(10, (currentScenario.notaryRate || 7.28) + 0.01))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                      <span className="text-[9px] text-slate-500 ml-0.5">%</span>
+                      <button onClick={() => updateCurrentScenario('notaryRate', 7.28)} className="p-1 text-slate-600 hover:text-white transition-colors ml-1"><RotateCcw size={10} /></button>
+                    </div>
+                  </div>
+                  <input type="range" min="2" max="10" step="0.01" value={currentScenario.notaryRate || 7.28} onChange={(e) => updateCurrentScenario('notaryRate', Number(e.target.value))} className="w-full h-1 accent-white cursor-pointer" />
                 </div>
               </div>
             )}
@@ -1156,7 +1316,12 @@ function App() {
                       <button onClick={() => updateCurrentScenario('apport', Math.round(currentResults.notaryFees))} className="bg-slate-700 text-slate-300 px-2 py-1 rounded text-[8px] font-black uppercase hover:bg-slate-600 transition-all">Notaire</button>
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Apport</label>
                     </div>
-                    <span className="text-sm font-black text-white">{currentScenario.apport.toLocaleString()} €</span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateCurrentScenario('apport', Math.max(0, currentScenario.apport - 1000))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                      <input type="number" value={currentScenario.apport} onChange={(e) => updateCurrentScenario('apport', Number(e.target.value))} className="w-20 bg-slate-800 text-white text-xs font-black rounded p-0.5 text-right outline-none border border-slate-700" />
+                      <button onClick={() => updateCurrentScenario('apport', Math.min(1000000, currentScenario.apport + 1000))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                      <span className="text-[10px] font-black text-slate-500 ml-0.5">€</span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <button onClick={() => updateCurrentScenario('apport', Math.max(0, currentScenario.apport - 1000))} className="text-slate-500 hover:text-brand-secondary"><Minus size={12} /></button>
@@ -1165,16 +1330,43 @@ function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Taux ({currentScenario.rate}%)</label>
-                      <button onClick={() => updateCurrentScenario('rate', 3.8)} className="p-1 text-slate-600 hover:text-white transition-colors"><RotateCcw size={10} /></button>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Taux</label>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => updateCurrentScenario('rate', Math.max(1, currentScenario.rate - 0.05))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                        <input type="number" step="0.01" value={currentScenario.rate} onChange={(e) => updateCurrentScenario('rate', Number(e.target.value))} className="w-14 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                        <button onClick={() => updateCurrentScenario('rate', Math.min(6, currentScenario.rate + 0.05))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                        <span className="text-[9px] text-slate-500 ml-0.5">%</span>
+                        <button onClick={() => updateCurrentScenario('rate', 3.8)} className="p-1 text-slate-600 hover:text-white transition-colors ml-1"><RotateCcw size={10} /></button>
+                      </div>
                     </div>
-                    <input type="range" min="1" max="6" step="0.1" value={currentScenario.rate} onChange={(e) => updateCurrentScenario('rate', Number(e.target.value))} className="w-full h-1 accent-white cursor-pointer" />
+                    <input type="range" min="1" max="6" step="0.01" value={currentScenario.rate} onChange={(e) => updateCurrentScenario('rate', Number(e.target.value))} className="w-full h-1 accent-white cursor-pointer" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Durée ({currentScenario.duration} ans)</label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ass.</label>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => updateCurrentScenario('insurance', Math.max(0, currentScenario.insurance - 0.01))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                        <input type="number" step="0.01" value={currentScenario.insurance} onChange={(e) => updateCurrentScenario('insurance', Number(e.target.value))} className="w-12 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                        <button onClick={() => updateCurrentScenario('insurance', Math.min(2, currentScenario.insurance + 0.01))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                        <span className="text-[9px] text-slate-500 ml-0.5">%</span>
+                        <button onClick={() => updateCurrentScenario('insurance', 0.5)} className="p-1 text-slate-600 hover:text-white transition-colors ml-1"><RotateCcw size={10} /></button>
+                      </div>
+                    </div>
+                    <input type="range" min="0" max="2" step="0.01" value={currentScenario.insurance} onChange={(e) => updateCurrentScenario('insurance', Number(e.target.value))} className="w-full h-1 accent-emerald-400 cursor-pointer" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Durée</label>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => updateCurrentScenario('duration', Math.max(10, currentScenario.duration - 1))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                        <input type="number" value={currentScenario.duration} onChange={(e) => updateCurrentScenario('duration', Number(e.target.value))} className="w-10 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                        <button onClick={() => updateCurrentScenario('duration', Math.min(25, currentScenario.duration + 1))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                        <span className="text-[9px] text-slate-500 ml-0.5">ans</span>
+                      </div>
+                    </div>
                     <input type="range" min="10" max="25" step="1" value={currentScenario.duration} onChange={(e) => updateCurrentScenario('duration', Number(e.target.value))} className="w-full h-1 accent-white cursor-pointer" />
                   </div>
                 </div>
@@ -1189,25 +1381,43 @@ function App() {
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-4 pt-2 pb-1">
                         <div>
                           <div className="flex justify-between items-center mb-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Dossier ({Math.round(currentResults.bankFee)}€)</label>
-                            <button onClick={() => updateCurrentScenario('bankFee', undefined)} className="text-slate-600 hover:text-white"><RotateCcw size={8} /></button>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Frais Banque</label>
+                             <div className="flex items-center gap-1">
+                               <button onClick={() => updateCurrentScenario('bankFee', Math.max(0, (currentScenario.bankFee ?? 1500) - 100))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                               <input type="number" value={currentScenario.bankFee ?? 1500} onChange={(e) => updateCurrentScenario('bankFee', Number(e.target.value))} className="w-14 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                               <button onClick={() => updateCurrentScenario('bankFee', Math.min(10000, (currentScenario.bankFee ?? 1500) + 100))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                               <span className="text-[9px] text-slate-500 ml-0.5">€</span>
+                               <button onClick={() => updateCurrentScenario('bankFee', undefined)} className="text-slate-600 hover:text-white ml-1"><RotateCcw size={8} /></button>
+                             </div>
                           </div>
-                          <input type="range" min="0" max="3000" step="100" value={currentScenario.bankFee ?? 1000} onChange={(e) => updateCurrentScenario('bankFee', Number(e.target.value))} className="w-full h-1 accent-amber-500 cursor-pointer" />
+                          <input type="range" min="0" max="3000" step="100" value={currentScenario.bankFee ?? 1500} onChange={(e) => updateCurrentScenario('bankFee', Number(e.target.value))} className="w-full h-1 accent-amber-500 cursor-pointer" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-4">
                           <div>
                             <div className="flex justify-between items-center mb-1">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Garantie ({Math.round(currentResults.guaranteeFee)}€)</label>
-                              <button onClick={() => updateCurrentScenario('guaranteeFee', undefined)} className="text-slate-600 hover:text-white"><RotateCcw size={8} /></button>
+                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Garantie</label>
+                               <div className="flex items-center gap-1">
+                                <button onClick={() => updateCurrentScenario('guaranteeFee', Math.max(0, Math.round(currentScenario.guaranteeFee ?? currentResults.guaranteeFee) - 100))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                                <input type="number" value={Math.round(currentScenario.guaranteeFee ?? currentResults.guaranteeFee)} onChange={(e) => updateCurrentScenario('guaranteeFee', Number(e.target.value))} className="w-14 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                                <button onClick={() => updateCurrentScenario('guaranteeFee', Math.min(20000, Math.round(currentScenario.guaranteeFee ?? currentResults.guaranteeFee) + 100))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                                <span className="text-[9px] text-slate-500 ml-0.5">€</span>
+                                <button onClick={() => updateCurrentScenario('guaranteeFee', undefined)} className="text-slate-600 hover:text-white ml-1"><RotateCcw size={8} /></button>
+                              </div>
                             </div>
                             <input type="range" min="0" max="10000" step="100" value={currentScenario.guaranteeFee ?? currentResults.guaranteeFee} onChange={(e) => updateCurrentScenario('guaranteeFee', Number(e.target.value))} className="w-full h-1 accent-amber-500 cursor-pointer" />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Courtage ({Math.round(currentResults.brokerFee)}€)</label>
-                              <button onClick={() => updateCurrentScenario('brokerFee', undefined)} className="text-slate-600 hover:text-white"><RotateCcw size={8} /></button>
+                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Courtage</label>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => updateCurrentScenario('brokerFee', Math.max(0, (currentScenario.brokerFee ?? 4100) - 100))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
+                                <input type="number" value={currentScenario.brokerFee ?? 4100} onChange={(e) => updateCurrentScenario('brokerFee', Number(e.target.value))} className="w-14 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
+                                <button onClick={() => updateCurrentScenario('brokerFee', Math.min(10000, (currentScenario.brokerFee ?? 4100) + 100))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
+                                <span className="text-[9px] text-slate-500 ml-0.5">€</span>
+                                <button onClick={() => updateCurrentScenario('brokerFee', undefined)} className="text-slate-600 hover:text-white ml-1"><RotateCcw size={8} /></button>
+                              </div>
                             </div>
-                            <input type="range" min="0" max="10000" step="100" value={currentScenario.brokerFee ?? currentResults.brokerFee} onChange={(e) => updateCurrentScenario('brokerFee', Number(e.target.value))} className="w-full h-1 accent-amber-500 cursor-pointer" />
+                            <input type="range" min="0" max="10000" step="100" value={currentScenario.brokerFee ?? 4100} onChange={(e) => updateCurrentScenario('brokerFee', Number(e.target.value))} className="w-full h-1 accent-amber-500 cursor-pointer" />
                           </div>
                         </div>
                       </motion.div>

@@ -89,6 +89,54 @@ export function generateAmortizationTable(principal, annualRate, durationYears, 
   return table;
 }
 
+export function capitalRestantDu(principal, annualRate, t) {
+  const r = annualRate / 100 / 12;
+  if (r === 0 || principal === 0) return Math.max(0, principal - (principal / (annualRate === 0 ? 1 : 1)) * t);
+  const { pi } = calculateMonthlyPayment(principal, annualRate, Math.ceil(t / 12) + 1, 0);
+  const cr = principal * Math.pow(1 + r, t) - pi * (Math.pow(1 + r, t) - 1) / r;
+  return Math.max(0, cr);
+}
+
+export function capitalRestantDuExact(principal, annualRate, durationYears, t) {
+  if (principal <= 0) return 0;
+  const r = annualRate / 100 / 12;
+  const n = durationYears * 12;
+  if (r === 0) return Math.max(0, principal * (1 - t / n));
+  const { pi } = calculateMonthlyPayment(principal, annualRate, durationYears, 0);
+  const cr = principal * Math.pow(1 + r, t) - pi * (Math.pow(1 + r, t) - 1) / r;
+  return Math.max(0, cr);
+}
+
+export function newPaymentAfterRA(capitalRestant, montantRA, annualRate, remainingMonths, insuranceRate, initialPrincipal) {
+  const newCapital = Math.max(0, capitalRestant - montantRA);
+  const r = annualRate / 100 / 12;
+  let newPi;
+  if (r === 0 || remainingMonths <= 0) {
+    newPi = remainingMonths > 0 ? newCapital / remainingMonths : 0;
+  } else {
+    newPi = (newCapital * r) / (1 - Math.pow(1 + r, -remainingMonths));
+  }
+  const insurance = (initialPrincipal * (insuranceRate / 100)) / 12;
+  return { pi: newPi, insurance, total: newPi + insurance, newCapital };
+}
+
+export function newDurationAfterRA(capitalRestant, montantRA, annualRate, originalPi) {
+  const newCapital = Math.max(0, capitalRestant - montantRA);
+  if (newCapital <= 0) return 0;
+  const r = annualRate / 100 / 12;
+  if (r === 0 || originalPi <= 0) return newCapital / originalPi;
+  const n = -Math.log(1 - (newCapital * r) / originalPi) / Math.log(1 + r);
+  return Math.ceil(n);
+}
+
+export function valeurPlacement(capitalInitial, epargneMensuelle, rendementAnnuel, mois) {
+  if (mois <= 0) return capitalInitial;
+  const r = rendementAnnuel / 100 / 12;
+  if (r === 0) return capitalInitial + epargneMensuelle * mois;
+  return capitalInitial * Math.pow(1 + r, mois) +
+    epargneMensuelle * (Math.pow(1 + r, mois) - 1) / r;
+}
+
 export function calculateTotalCost(principal, annualRate, durationYears, insuranceRate) {
   const { total } = calculateMonthlyPayment(principal, annualRate, durationYears, insuranceRate);
   const totalPaid = total * durationYears * 12;
