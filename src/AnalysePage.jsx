@@ -946,6 +946,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
             </thead>
             <tbody className="divide-y divide-slate-50">
               {[
+                { label: 'Apport opti (35 %)', key: () => `${fmt(optiApport)} €`, color: () => 'text-indigo-600 font-black' },
                 { label: 'Apport',           key: (r) => `${fmt(r.apport)} €`,    raw: (r) => r.apport,    lib: false },
                 { label: 'Emprunt',          key: (r) => `${fmt(r.loanAmount)} €`, raw: (r) => r.loanAmount, lib: true },
                 { label: 'Cash gardé jour J',key: (r) => `${fmt(r.cashGarde)} €`, raw: (r) => r.cashGarde, lib: false, color: (r) => r.cashGarde < 0 ? 'text-rose-600' : '' },
