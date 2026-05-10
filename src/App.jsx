@@ -705,14 +705,17 @@ function App() {
     if (compare === undefined || compare === null) return null;
     const d = current - compare;
     if (Math.abs(d) < 0.5) return null;
-    const isPositive = lowerIsBetter ? d < 0 : d > 0;
     const sign = d > 0 ? '+' : '';
-    const formatted = isPercent
+    const pct = compare !== 0 ? (d / Math.abs(compare)) * 100 : 0;
+    const formattedAbs = isPercent
       ? `${sign}${d.toFixed(3)} %`
       : `${sign}${Math.round(d).toLocaleString()} ${unit}`;
+    const formattedPct = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
     return (
-      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
-        {formatted}
+      <span className="basis-full mt-1">
+        <span className="inline-flex items-center gap-1 bg-amber-400 text-black text-[9px] font-black px-2 py-0.5 rounded-full">
+          {formattedAbs} <span className="opacity-60">({formattedPct})</span>
+        </span>
       </span>
     );
   };
@@ -939,6 +942,27 @@ function App() {
                   </a>
                 )}
               </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-white border border-slate-100 rounded-xl px-2.5 py-1.5 shadow-sm">
+                  <ArrowLeftRight size={11} className="text-slate-400 shrink-0" />
+                  <span className="hidden sm:inline text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer</span>
+                  <select
+                    value={compareWithId ?? ''}
+                    onChange={e => setCompareWithId(e.target.value === '' ? null : Number(e.target.value))}
+                    className="bg-transparent text-[11px] font-black text-slate-700 outline-none cursor-pointer max-w-[120px]"
+                  >
+                    <option value="">Aucun</option>
+                    {scenarios.filter(s => s.id !== currentScenarioId).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  {compareWithId !== null && (
+                    <button onClick={() => setCompareWithId(null)} className="text-slate-300 hover:text-slate-500 transition-colors">
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+              </div>
             </header>
 
             <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
@@ -962,6 +986,18 @@ function App() {
                 </div>
                 <div className="p-2 lg:p-0 lg:px-4">
                   <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Votre Apport</p>
+                  {currentResults.minApportAt35 > 0 && (() => {
+                    const diff = currentScenario.apport - currentResults.minApportAt35;
+                    const pct = (diff / currentResults.minApportAt35) * 100;
+                    return (
+                      <div className="mb-1 space-y-0.5">
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Opti 35% : {Math.round(currentResults.minApportAt35).toLocaleString()} €</p>
+                        <p className="text-[9px] font-black text-amber-500">
+                          {diff >= 0 ? '+' : ''}{Math.round(diff).toLocaleString()} € &nbsp;({pct >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-baseline gap-1 flex-wrap">
                     <input type="number" className="bg-transparent border-none p-0 text-xl font-black text-brand-secondary focus:ring-0 w-24" value={currentScenario.apport} onChange={(e) => updateCurrentScenario('apport', Number(e.target.value))} />
                     <span className="text-sm font-black text-slate-400">€</span>
