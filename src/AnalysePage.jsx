@@ -979,7 +979,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
                 <p className="text-[10px] font-black text-slate-700">Comment ce capital grossit chaque mois</p>
                 <div className="space-y-1.5 text-[10px] text-slate-500 leading-relaxed">
                   <p>Chaque mois, votre capital augmente de <span className="font-bold text-slate-700">deux sources</span> :</p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="bg-white rounded-lg p-2 border border-slate-200">
                       <p className="font-black text-slate-700 mb-0.5">📥 Ce que vous versez</p>
                       <p>Ce qui reste de votre salaire après avoir tout payé : mensualité + courses + factures. C'est votre <span className="font-bold">épargne mensuelle</span> = revenus − mensualité crédit − dépenses famille.</p>
@@ -1042,7 +1042,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
               </div>
             </div>
 
-            <div className="col-span-2 space-y-3">
+            <div className="lg:col-span-2 space-y-3">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">5 · Mensualité ressentie (après rendement placement)</p>
               <div className="h-56"><Line data={chartData.mensualiteRessentie} options={CHART_OPTIONS_BASE} /></div>
               <div className="bg-slate-50 rounded-xl p-3 space-y-2">
