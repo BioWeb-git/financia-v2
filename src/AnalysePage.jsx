@@ -424,9 +424,21 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   }, [compareSimId, savedSims]);
 
   const optiApport = useMemo(() => {
+    // Si les paramètres clés correspondent au scénario dashboard, on utilise son
+    // minApportAt35 exact (inclut travaux, frais précis). Sinon on recompute localement.
+    const dashPrice = currentScenario?.price;
+    const dashRate = currentScenario?.rate;
+    const dashDuration = currentScenario?.duration;
+    const paramsMatchDashboard =
+      dashPrice && Math.abs(price - dashPrice) < 1 &&
+      Math.abs(rate - (dashRate || 3.2)) < 0.001 &&
+      Math.abs(duration - (dashDuration || 25)) < 0.1;
+    if (paramsMatchDashboard && currentResults?.minApportAt35 != null) {
+      return currentResults.minApportAt35;
+    }
     const bankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
     return computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, bankIncome);
-  }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings]);
+  }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings, currentScenario, currentResults]);
 
   const optiApportRounded = Math.ceil(optiApport / 1000) * 1000;
 
