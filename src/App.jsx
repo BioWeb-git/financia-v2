@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calculator, TrendingUp, PieChart, Table as TableIcon, Home,
   ArrowLeftRight, Plus, Minus, Trash2, ShieldCheck, AlertTriangle, User, Lock, Unlock, RotateCcw,
-  Info, ChevronRight, Save, FileText, Landmark, Leaf, History, Settings, ExternalLink,
+  Info, ChevronRight, ChevronDown, ChevronUp, Save, FileText, Landmark, Leaf, History, Settings, ExternalLink,
   ArrowUpRight, ArrowDownRight, X, Search
 } from 'lucide-react';
 import BienPage from './BienPage';
@@ -221,6 +221,7 @@ function App() {
   const [renaudStats, setRenaudStats] = useState(initialState?.renaudStats || { ...FACTORY_SETTINGS.renaudBnc, monthsPassed: 4 });
   const [jessStats, setJessStats] = useState(initialState?.jessStats || { ...FACTORY_SETTINGS.jessSalaire });
   const [isJessCalcOpen, setIsJessCalcOpen] = useState(false);
+  const [showFeeDetail, setShowFeeDetail] = useState(false);
   const [showToast, setShowToast] = useState(false);
   
   const [scenarios, setScenarios] = useState(() => {
@@ -931,12 +932,43 @@ function App() {
 
         {/* LIGNE 1: INDICATEURS CLÉS (KPIs) */}
         <div className="grid grid-cols-2 xl:grid-cols-6 gap-3 md:gap-6">
-          <div className="glass-card p-6 rounded-[2rem]">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Opération</p>
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</p>
-              <DeltaBadge current={currentResults.totalAcquisition} compare={compareResults?.totalAcquisition} lowerIsBetter={true} />
-            </div>
+          <div className="glass-card rounded-[2rem] overflow-hidden">
+            <button className="w-full p-6 text-left flex items-start justify-between gap-2" onClick={() => setShowFeeDetail(v => !v)}>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Opération</p>
+                <div className="flex items-baseline gap-1 flex-wrap">
+                  <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</p>
+                  <DeltaBadge current={currentResults.totalAcquisition} compare={compareResults?.totalAcquisition} lowerIsBetter={true} />
+                </div>
+              </div>
+              {showFeeDetail ? <ChevronUp size={14} className="text-slate-400 mt-1 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 mt-1 shrink-0" />}
+            </button>
+            {showFeeDetail && (
+              <div className="px-6 pb-5 space-y-1 border-t border-slate-100 pt-4">
+                {[
+                  { label: 'Prix du bien', value: currentScenario.price, base: true },
+                  { label: `Frais d'agence (${currentScenario.agencyRate ?? 0} %)`, value: currentResults.agencyFees },
+                  { label: `Frais de notaire (${currentScenario.notaryRate ?? 7.28} %)`, value: currentResults.notaryFees },
+                  ...(currentScenario.travaux > 0 ? [{ label: 'Travaux', value: currentScenario.travaux }] : []),
+                  { label: 'Frais bancaires', value: currentResults.bankFee },
+                  { label: 'Courtage', value: currentResults.brokerFee },
+                  { label: 'Garantie caution', value: currentResults.guaranteeFee, note: '≈ 0.869 % du prêt' },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-baseline justify-between gap-2">
+                    <span className={`text-[9px] ${row.base ? 'font-black text-slate-600' : 'text-slate-400'}`}>
+                      {!row.base && <span className="text-slate-300 mr-1">+</span>}{row.label}
+                    </span>
+                    <span className={`text-[10px] font-black tabular-nums ${row.base ? 'text-slate-700' : 'text-slate-500'}`}>
+                      {Math.round(row.value).toLocaleString()} €
+                    </span>
+                  </div>
+                ))}
+                <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between items-baseline">
+                  <span className="text-[9px] font-black text-brand-primary uppercase tracking-wider">= Total</span>
+                  <span className="text-[11px] font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="glass-card p-6 rounded-[2rem]">
             <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Montant Emprunté</p>
