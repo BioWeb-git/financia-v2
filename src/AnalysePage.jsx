@@ -897,8 +897,21 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
                 step={1000}
                 onChange={(v) => setApports((prev) => prev.map((a, j) => (j === i ? v : a)))}
                 format={(v) => `${fmt(v)} €`}
-                sub={`Emprunté : ${fmt(Math.max(0, totalAcquisition - apports[i]))} €  ·  Endettement : ${results[i].debtRatio1.toFixed(1)} %  ·  Opti : ${fmt(optiApport)} €`}
               />
+              <div className="grid grid-cols-3 gap-1 text-center">
+                <div className="bg-slate-50 rounded-lg px-2 py-1.5">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Emprunté</p>
+                  <p className="text-[11px] font-black text-slate-700">{fmt(Math.max(0, totalAcquisition - apports[i]))} €</p>
+                </div>
+                <div className={cn('rounded-lg px-2 py-1.5', results[i].debtRatio1 > 35 ? 'bg-rose-50' : results[i].debtRatio1 > 33 ? 'bg-amber-50' : 'bg-emerald-50')}>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Endettement</p>
+                  <p className={cn('text-[11px] font-black', results[i].debtRatio1 > 35 ? 'text-rose-600' : results[i].debtRatio1 > 33 ? 'text-amber-600' : 'text-emerald-600')}>{results[i].debtRatio1.toFixed(1)} %</p>
+                </div>
+                <div className="bg-indigo-50 rounded-lg px-2 py-1.5">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Opti</p>
+                  <p className="text-[11px] font-black text-indigo-600">{fmt(optiApport)} €</p>
+                </div>
+              </div>
               {results[i].alerts.length > 0 && (
                 <div className="space-y-1">
                   {results[i].alerts.map((al, k) => (
