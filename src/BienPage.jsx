@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Plus, Search, MapPin, Euro, Maximize2, Clipboard, 
+import {
+  Plus, Search, MapPin, Euro, Maximize2, Clipboard,
   Trash2, ExternalLink, CheckCircle2, Circle, Check, Star,
-  Columns, X, Save, AlertCircle, Loader2, Map as MapIcon, ChevronLeft, ChevronRight
+  Columns, X, Save, AlertCircle, Loader2, Map as MapIcon, ChevronLeft, ChevronRight,
+
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,13 +26,31 @@ const STANDARD_COLUMNS = [
   { id: 'liens', label: 'Liens', align: 'center', width: 'w-24' },
 ];
 
+const BIENS_STORAGE_KEY = 'financia_biens_state';
+
+const loadBiensFromStorage = () => {
+  try {
+    return JSON.parse(localStorage.getItem(BIENS_STORAGE_KEY) || 'null');
+  } catch {
+    return null;
+  }
+};
+
 const BienPage = () => {
-  const [biens, setBiens] = useState([]);
-  const [customColumns, setCustomColumns] = useState([]);
-  const [columnOrder, setColumnOrder] = useState([]);
+  const initData = loadBiensFromStorage();
+  const standardIds = STANDARD_COLUMNS.map(c => c.id);
+  const initCustomCols = initData?.customColumns || [];
+  const savedOrder = initData?.columnOrder || [];
+  const customIds = initCustomCols.map(c => c.id);
+  const missingStandardIds = standardIds.filter(id => !savedOrder.includes(id));
+  const initOrder = [...missingStandardIds, ...savedOrder.filter(id => standardIds.includes(id) || customIds.includes(id))];
+
+  const [biens, setBiens] = useState(initData?.biens || []);
+  const [customColumns, setCustomColumns] = useState(initCustomCols);
+  const [columnOrder, setColumnOrder] = useState(initOrder);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState(null);
   const [newBienText, setNewBienText] = useState('');
@@ -39,47 +58,45 @@ const BienPage = () => {
   const [addMode, setAddMode] = useState(null); // 'ai' or 'manual'
   const [newColumnName, setNewColumnName] = useState('');
 
-  // Fetch data on mount
+  const saveAll = (updatedBiens, updatedCols, updatedOrder) => {
+    const data = {
+      biens: updatedBiens ?? biens,
+      customColumns: updatedCols ?? customColumns,
+      columnOrder: updatedOrder ?? columnOrder,
+    };
+    // localStorage toujours (fallback Forge)
+    localStorage.setItem(BIENS_STORAGE_KEY, JSON.stringify(data));
+    // Écriture dans biens.json via server.cjs quand disponible
+    fetch('/api/biens/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).catch(() => {});
+  };
+
+  // Chargement au démarrage : API (biens.json) prioritaire, localStorage en fallback
   useEffect(() => {
-    fetchBiens();
-  }, []);
-
-  const fetchBiens = async () => {
-    try {
-      const res = await fetch('/api/biens');
-      const data = await res.json();
-      setBiens(data.biens || []);
-      setCustomColumns(data.customColumns || []);
-      const savedOrder = data.columnOrder || [];
-      const standardIds = STANDARD_COLUMNS.map(c => c.id);
-      const customIds = (data.customColumns || []).map(c => c.id);
-      
-      const missingStandardIds = standardIds.filter(id => !savedOrder.includes(id));
-      const finalOrder = [...missingStandardIds, ...savedOrder.filter(id => standardIds.includes(id) || customIds.includes(id))];
-      
-      setColumnOrder(finalOrder);
-    } catch (err) {
-      console.error("Erreur chargement biens:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const saveAll = async (updatedBiens, updatedCols, updatedOrder) => {
-    try {
-      await fetch('/api/biens/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          biens: updatedBiens || biens, 
-          customColumns: updatedCols || customColumns,
-          columnOrder: updatedOrder || columnOrder
-        })
+    fetch('/api/biens')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        const stdIds = STANDARD_COLUMNS.map(c => c.id);
+        const custIds = (data.customColumns || []).map(c => c.id);
+        const order = data.columnOrder || [];
+        const missing = stdIds.filter(id => !order.includes(id));
+        const finalOrder = [...missing, ...order.filter(id => stdIds.includes(id) || custIds.includes(id))];
+        setBiens(data.biens || []);
+        setCustomColumns(data.customColumns || []);
+        setColumnOrder(finalOrder);
+        localStorage.setItem(BIENS_STORAGE_KEY, JSON.stringify({
+          biens: data.biens || [],
+          customColumns: data.customColumns || [],
+          columnOrder: finalOrder,
+        }));
+      })
+      .catch(() => {
+        // API indisponible (Forge) → données déjà chargées depuis localStorage dans useState
       });
-    } catch (err) {
-      console.error("Erreur sauvegarde:", err);
-    }
-  };
+  }, []);
 
   // Heuristic Parser (Fallback)
   const parseAdTextHeuristic = (text) => {
@@ -325,14 +342,14 @@ const BienPage = () => {
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Recherche de Biens</h2>
           <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mt-1">Organisation et suivi des annonces</p>
         </div>
-        <div className="flex gap-4">
-          <button 
+        <div className="flex gap-3">
+          <button
             onClick={() => setIsColumnModalOpen(true)}
             className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase flex items-center gap-2 hover:bg-slate-200 transition-all"
           >
             <Columns size={14} /> Gérer Colonnes
           </button>
-          <button 
+          <button
             onClick={() => {
               setAddMode('ai');
               setParsedData(null);

@@ -333,8 +333,26 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const [compareSimId, setCompareSimId] = useState(null);
   const [saveInput, setSaveInput] = useState({ open: false, name: '' });
 
+  // Chargement au démarrage depuis analyse.json (API prioritaire, localStorage fallback)
+  useEffect(() => {
+    fetch('/api/analyse')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        const sims = data.simulations || [];
+        setSavedSims(sims);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sims));
+      })
+      .catch(() => {});
+  }, []);
+
+  // Sync localStorage + API à chaque changement de savedSims
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedSims));
+    fetch('/api/analyse/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ simulations: savedSims }),
+    }).catch(() => {});
   }, [savedSims]);
 
   const saveSim = () => {
