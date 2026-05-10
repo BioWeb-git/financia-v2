@@ -731,7 +731,7 @@ function App() {
       {activePage === 'biens' ? (
         <BienPage />
       ) : activePage === 'analyse' ? (
-        <AnalysePage currentScenario={currentScenario} globalSettings={globalSettings} />
+        <AnalysePage currentScenario={currentScenario} globalSettings={globalSettings} currentResults={currentResults} />
       ) : (
         <>
           <main className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -850,8 +850,20 @@ function App() {
           </div>
           <div className="border-t border-slate-100" />
           {/* Ligne 2 : paramètres du prêt */}
-          <div className="grid grid-cols-4 divide-x divide-slate-100">
+          <div className="grid grid-cols-5 divide-x divide-slate-100">
             <div className="pr-4">
+              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                Revenus Cumulés
+                <HelpTip title="Revenus Mensuels Nets" content="Cumul des revenus nets mensuels de Renaud et Jessica, utilisés comme référence bancaire pour le calcul du taux d'endettement." position="bottom" />
+              </div>
+              <p className="text-xl font-black text-slate-900 leading-tight">
+                {Math.round(currentResults.bankIncome).toLocaleString()}&nbsp;€
+              </p>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                Jess {Math.round(globalSettings.incomeJess).toLocaleString()} + Renaud {Math.round(globalSettings.incomeRenaud).toLocaleString()}
+              </p>
+            </div>
+            <div className="px-4">
               <p className="text-[10px] font-black text-emerald-500 uppercase mb-1">Épargne ({currentScenario.duration} ans)</p>
               <div className="flex items-baseline gap-1 flex-wrap">
                 <p className="text-xl font-black text-emerald-600 leading-tight">

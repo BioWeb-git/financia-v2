@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Line, Bar } from 'react-chartjs-2';
-import { AlertTriangle, TrendingUp, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Info, ChevronDown, ChevronUp, Save, RotateCcw, ArrowLeftRight, X } from 'lucide-react';
 import {
   calculateMonthlyPayment,
   capitalRestantDuExact,
@@ -53,11 +53,47 @@ const CHART_OPTIONS_BASE = {
 };
 
 function Slider({ label, value, min, max, step, onChange, format, sub }) {
+  const [editing, setEditing] = useState(false);
+  const [inputVal, setInputVal] = useState('');
+  const dec = step < 1 ? (String(step).split('.')[1]?.length || 1) : 0;
+
+  const handleMinus = () => onChange(Number(Math.max(min, value - step).toFixed(dec)));
+  const handlePlus  = () => onChange(Number(Math.min(max, value + step).toFixed(dec)));
+
+  const commit = () => {
+    const num = parseFloat(String(inputVal).replace(/\s/g, '').replace(',', '.'));
+    if (!isNaN(num)) onChange(Number(Math.min(max, Math.max(min, num)).toFixed(dec)));
+    setEditing(false);
+  };
+
   return (
     <div className="space-y-1">
-      <div className="flex justify-between items-baseline">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-        <span className="text-sm font-black text-slate-900">{format ? format(value) : value}</span>
+      <div className="flex justify-between items-center gap-2">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">{label}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={handleMinus} className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-indigo-100 hover:text-indigo-600 font-black text-sm leading-none transition-colors">−</button>
+          {editing ? (
+            <input
+              autoFocus
+              type="number"
+              value={inputVal}
+              step={step}
+              onChange={(e) => setInputVal(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+              className="w-24 text-center text-xs font-black text-slate-900 border border-indigo-400 rounded-lg px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+          ) : (
+            <button
+              onClick={() => { setInputVal(String(value)); setEditing(true); }}
+              className="text-sm font-black text-slate-900 hover:text-indigo-600 hover:underline transition-colors min-w-[72px] text-right"
+              title="Cliquer pour saisir manuellement"
+            >
+              {format ? format(value) : value}
+            </button>
+          )}
+          <button onClick={handlePlus} className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-indigo-100 hover:text-indigo-600 font-black text-sm leading-none transition-colors">+</button>
+        </div>
       </div>
       <input
         type="range" min={min} max={max} step={step} value={value}
@@ -191,6 +227,14 @@ function computeScenario(p, apport) {
 }
 
 const MAX_APPORT = 150000;
+const STORAGE_KEY = 'financia_analyse_sims';
+const DEFAULT_PARAMS = {
+  price: 430000, fraisNotaire: 7.28, fraisAgence: 12000, fraisAutres: 8000,
+  rate: 3.2, duration: 25, insurance: 0.36, income: 5800,
+  depensesFamille: 2500, rendement: 4.5,
+  prixParcelle: 80000, moisVente: 18, raMode: 'mensualite',
+  matelas: 20000, travaux: 30000, epargneTotale: 200000,
+};
 
 function computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income) {
   const fraisTotal = price * (fraisNotaire / 100) + fraisAgence + fraisAutres;
@@ -216,7 +260,7 @@ function distributeApports(min, max) {
   ];
 }
 
-export default function AnalysePage({ currentScenario, globalSettings }) {
+export default function AnalysePage({ currentScenario, globalSettings, currentResults }) {
   const initPrice = currentScenario?.price || 430000;
   const initRate = currentScenario?.rate || 3.2;
   const initDuration = currentScenario?.duration || 25;
@@ -245,6 +289,79 @@ export default function AnalysePage({ currentScenario, globalSettings }) {
 
   const initMin = computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.5, 12000, 8000, initRate, initDuration, initInsurance, initIncome);
   const [apports, setApports] = useState(distributeApports(initMin, MAX_APPORT));
+
+  const applyParams = (p, newApports) => {
+    setPrice(p.price); setFraisNotaire(p.fraisNotaire); setFraisAgence(p.fraisAgence);
+    setFraisAutres(p.fraisAutres); setRate(p.rate); setDuration(p.duration);
+    setInsurance(p.insurance); setIncome(p.income); setDepensesFamille(p.depensesFamille);
+    setRendement(p.rendement); setPrixParcelle(p.prixParcelle); setMoisVente(p.moisVente);
+    setRaMode(p.raMode); setMatelas(p.matelas); setTravaux(p.travaux);
+    setEpargneTotale(p.epargneTotale);
+    if (newApports) setApports(newApports);
+  };
+
+  const syncFromDashboard = () => {
+    if (!currentScenario) return;
+    const s = currentScenario;
+    const r = currentResults;
+    applyParams({
+      price: s.price || 430000,
+      fraisNotaire: s.notaryRate || 7.28,
+      fraisAgence: r?.agencyFees ?? (s.price * ((s.agencyRate || 0) / 100)),
+      fraisAutres: (r?.bankFee ?? 1500) + (r?.brokerFee ?? 4100) + (r?.guaranteeFee ?? 0),
+      rate: s.rate || 3.2, duration: s.duration || 25, insurance: s.insurance || 0.36,
+      income: (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0),
+      depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux,
+      epargneTotale: globalSettings?.epargneTotale || 200000,
+    }, null);
+    setActiveSimId(null);
+  };
+
+  const [savedSims, setSavedSims] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  });
+  const [activeSimId, setActiveSimId] = useState(null);
+  const [compareSimId, setCompareSimId] = useState(null);
+  const [saveInput, setSaveInput] = useState({ open: false, name: '' });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedSims));
+  }, [savedSims]);
+
+  const saveSim = () => {
+    if (!saveInput.name.trim()) return;
+    const snap = {
+      id: Date.now(),
+      name: saveInput.name.trim(),
+      createdAt: new Date().toISOString(),
+      params: { price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale },
+      apports: [...apports],
+    };
+    setSavedSims(prev => {
+      const idx = prev.findIndex(s => s.id === activeSimId);
+      if (idx >= 0) { const n = [...prev]; n[idx] = snap; return n; }
+      return [...prev, snap];
+    });
+    setActiveSimId(snap.id);
+    setSaveInput({ open: false, name: '' });
+  };
+
+  const loadSim = (sim) => { applyParams(sim.params, sim.apports); setActiveSimId(sim.id); };
+
+  const deleteSim = (id) => {
+    setSavedSims(prev => prev.filter(s => s.id !== id));
+    if (activeSimId === id) setActiveSimId(null);
+    if (compareSimId === id) setCompareSimId(null);
+  };
+
+  const resetToDefaults = () => { applyParams(DEFAULT_PARAMS, null); setActiveSimId(null); };
+
+  const compareSimResults = useMemo(() => {
+    if (!compareSimId) return null;
+    const sim = savedSims.find(s => s.id === compareSimId);
+    if (!sim) return null;
+    return sim.apports.map(a => computeScenario(sim.params, a));
+  }, [compareSimId, savedSims]);
 
   const repartir = useCallback(() => {
     const min = computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income);
@@ -433,6 +550,111 @@ export default function AnalysePage({ currentScenario, globalSettings }) {
             <p className="text-[9px] text-slate-400 uppercase font-bold">Dont frais</p>
             <p className="text-lg font-black text-slate-500">{fmt(fraisTotal)} €</p>
           </div>
+          {currentScenario?.price > 0 && (
+            <button
+              onClick={syncFromDashboard}
+              className="px-4 py-2 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase hover:bg-indigo-100 transition-all flex items-center gap-2"
+              title="Importer les valeurs du scénario actif dans le dashboard"
+            >
+              ↙ Sync dashboard
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Barre simulations sauvegardées */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 flex-wrap">
+        {/* Chips */}
+        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+          <button
+            onClick={() => setActiveSimId(null)}
+            className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border',
+              activeSimId === null
+                ? 'bg-indigo-500 text-white border-indigo-500'
+                : 'bg-slate-50 text-slate-500 border-slate-100 hover:bg-slate-100')}
+          >
+            ✏ Brouillon
+          </button>
+          {savedSims.map(sim => (
+            <div key={sim.id} className="flex items-center gap-0.5">
+              <button
+                onClick={() => loadSim(sim)}
+                className={cn('px-3 py-1.5 rounded-l-lg text-[10px] font-black uppercase transition-all border-y border-l',
+                  activeSimId === sim.id
+                    ? 'bg-indigo-500 text-white border-indigo-500'
+                    : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100')}
+              >
+                {sim.name}
+              </button>
+              <button
+                onClick={() => deleteSim(sim.id)}
+                className={cn('px-1.5 py-1.5 rounded-r-lg text-[10px] transition-all border-y border-r',
+                  activeSimId === sim.id
+                    ? 'bg-indigo-400 text-white border-indigo-400 hover:bg-rose-500 hover:border-rose-500'
+                    : 'bg-slate-50 text-slate-300 border-slate-100 hover:bg-rose-50 hover:text-rose-500 hover:border-rose-100')}
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions droite */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Comparer avec */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5">
+            <ArrowLeftRight size={10} className="text-slate-400" />
+            <span className="text-[9px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer</span>
+            <select
+              value={compareSimId ?? ''}
+              onChange={e => setCompareSimId(e.target.value === '' ? null : Number(e.target.value))}
+              className="bg-transparent text-[10px] font-black text-slate-700 outline-none cursor-pointer max-w-[110px]"
+            >
+              <option value="">Aucun</option>
+              {savedSims.filter(s => s.id !== activeSimId).map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            {compareSimId !== null && (
+              <button onClick={() => setCompareSimId(null)} className="text-slate-300 hover:text-slate-500 ml-0.5">
+                <X size={10} />
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={resetToDefaults}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black uppercase hover:bg-slate-100 transition-all"
+          >
+            <RotateCcw size={11} /> Réinitialiser
+          </button>
+
+          {saveInput.open ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Nom de la simulation…"
+                value={saveInput.name}
+                onChange={e => setSaveInput(v => ({ ...v, name: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter') saveSim(); if (e.key === 'Escape') setSaveInput({ open: false, name: '' }); }}
+                className="w-44 border border-indigo-300 rounded-xl px-3 py-1.5 text-[10px] font-black text-slate-800 outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+              <button onClick={saveSim} className="px-3 py-1.5 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase hover:bg-indigo-600 transition-all">
+                OK
+              </button>
+              <button onClick={() => setSaveInput({ open: false, name: '' })} className="text-slate-400 hover:text-slate-600">
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setSaveInput({ open: true, name: activeSimId ? (savedSims.find(s => s.id === activeSimId)?.name ?? '') : '' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-black uppercase hover:bg-indigo-100 transition-all"
+            >
+              <Save size={11} /> {activeSimId ? 'Mettre à jour' : 'Sauvegarder'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -555,30 +777,30 @@ export default function AnalysePage({ currentScenario, globalSettings }) {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {[
-                { label: 'Apport', key: (r) => `${fmt(r.apport)} €` },
-                { label: 'Emprunt', key: (r) => `${fmt(r.loanAmount)} €` },
-                { label: 'Cash gardé jour J', key: (r) => `${fmt(r.cashGarde)} €`, color: (r) => r.cashGarde < 0 ? 'text-rose-600' : '' },
-                { label: 'Cash placé', key: (r) => `${fmt(r.cashPlace)} €`, color: (r) => r.cashPlace < 0 ? 'text-rose-600' : 'text-emerald-600' },
+                { label: 'Apport',           key: (r) => `${fmt(r.apport)} €`,    raw: (r) => r.apport,    lib: false },
+                { label: 'Emprunt',          key: (r) => `${fmt(r.loanAmount)} €`, raw: (r) => r.loanAmount, lib: true },
+                { label: 'Cash gardé jour J',key: (r) => `${fmt(r.cashGarde)} €`, raw: (r) => r.cashGarde, lib: false, color: (r) => r.cashGarde < 0 ? 'text-rose-600' : '' },
+                { label: 'Cash placé',       key: (r) => `${fmt(r.cashPlace)} €`, raw: (r) => r.cashPlace, lib: false, color: (r) => r.cashPlace < 0 ? 'text-rose-600' : 'text-emerald-600' },
                 { label: '— PHASE 1 —', header: true },
-                { label: 'Mensualité totale', key: (r) => `${fmt(r.pmt1.total)} €` },
-                { label: 'Taux d\'endettement', key: (r) => `${r.debtRatio1.toFixed(1)} %`, color: (r) => r.debtRatio1 > 35 ? 'text-rose-600 font-black' : r.debtRatio1 > 33 ? 'text-amber-600' : 'text-emerald-600' },
-                { label: 'Reste à vivre', key: (r) => `${fmt(r.rav1)} €`, color: (r) => r.rav1 < 500 ? 'text-rose-600' : 'text-slate-700' },
-                { label: 'Épargne mensuelle', key: (r) => `${fmt(r.epargne1)} €`, color: (r) => r.epargne1 < 0 ? 'text-rose-600' : 'text-emerald-600' },
+                { label: 'Mensualité totale',  key: (r) => `${fmt(r.pmt1.total)} €`, raw: (r) => r.pmt1.total, lib: true },
+                { label: 'Taux d\'endettement',key: (r) => `${r.debtRatio1.toFixed(1)} %`, raw: (r) => r.debtRatio1, lib: true, isPercent: true, color: (r) => r.debtRatio1 > 35 ? 'text-rose-600 font-black' : r.debtRatio1 > 33 ? 'text-amber-600' : 'text-emerald-600' },
+                { label: 'Reste à vivre',    key: (r) => `${fmt(r.rav1)} €`, raw: (r) => r.rav1, lib: false, color: (r) => r.rav1 < 500 ? 'text-rose-600' : 'text-slate-700' },
+                { label: 'Épargne mensuelle',key: (r) => `${fmt(r.epargne1)} €`, raw: (r) => r.epargne1, lib: false, color: (r) => r.epargne1 < 0 ? 'text-rose-600' : 'text-emerald-600' },
                 { label: `— APRÈS VENTE PARCELLE (M+${moisVente}) —`, header: true },
-                { label: raMode === 'investir' ? 'Capital injecté dans le placement' : 'Capital restant avant RA', key: (r) => raMode === 'investir' ? `${fmt(r.injectionParcelle)} €` : `${fmt(r.crAvantRA)} €`, color: raMode === 'investir' ? () => 'text-emerald-600' : undefined },
-                { label: raMode === 'investir' ? 'Mensualité (inchangée)' : raMode === 'mensualite' ? 'Nouvelle mensualité' : 'Mensualité maintenue', key: (r) => `${fmt(r.pmt2.total)} €`, color: (r) => r.pmt2.total < r.pmt1.total ? 'text-emerald-600' : '' },
-                { label: raMode === 'duree' ? 'Durée réduite à (mois)' : 'Durée (inchangée)', key: (r) => raMode === 'duree' ? `${Math.round(r.tRA + r.dureePhase2Mois)} mois` : `${duration * 12} mois` },
-                { label: 'Reste à vivre phase 2', key: (r) => `${fmt(r.rav2)} €`, color: (r) => r.rav2 < 500 ? 'text-rose-600' : 'text-slate-700' },
-                { label: 'Épargne mensuelle phase 2', key: (r) => `${fmt(r.epargne2)} €`, color: (r) => r.epargne2 < 0 ? 'text-rose-600' : 'text-emerald-600' },
+                { label: raMode === 'investir' ? 'Capital injecté placement' : 'Capital restant avant RA', key: (r) => `${fmt(raMode === 'investir' ? r.injectionParcelle : r.crAvantRA)} €`, raw: (r) => raMode === 'investir' ? r.injectionParcelle : r.crAvantRA, lib: false, color: raMode === 'investir' ? () => 'text-emerald-600' : undefined },
+                { label: raMode === 'investir' ? 'Mensualité (inchangée)' : raMode === 'mensualite' ? 'Nouvelle mensualité' : 'Mensualité maintenue', key: (r) => `${fmt(r.pmt2.total)} €`, raw: (r) => r.pmt2.total, lib: true, color: (r) => r.pmt2.total < r.pmt1.total ? 'text-emerald-600' : '' },
+                { label: raMode === 'duree' ? 'Durée réduite à (mois)' : 'Durée (inchangée)', key: (r) => raMode === 'duree' ? `${Math.round(r.tRA + r.dureePhase2Mois)} mois` : `${duration * 12} mois`, raw: (r) => raMode === 'duree' ? Math.round(r.tRA + r.dureePhase2Mois) : duration * 12, lib: true, isMonths: true },
+                { label: 'Reste à vivre phase 2', key: (r) => `${fmt(r.rav2)} €`, raw: (r) => r.rav2, lib: false, color: (r) => r.rav2 < 500 ? 'text-rose-600' : 'text-slate-700' },
+                { label: 'Épargne mensuelle phase 2', key: (r) => `${fmt(r.epargne2)} €`, raw: (r) => r.epargne2, lib: false, color: (r) => r.epargne2 < 0 ? 'text-rose-600' : 'text-emerald-600' },
                 ...(raMode === 'duree' ? [
                   { label: '— PHASE 3 : crédit terminé —', header: true },
                   { label: 'Mois libérés (réinvestis)', key: (r) => r.phase3Months > 0 ? `${r.phase3Months} mois` : '—', color: (r) => r.phase3Months > 0 ? 'text-emerald-600' : 'text-slate-400' },
-                  { label: 'Versement mensuel phase 3', key: (r) => r.phase3Months > 0 ? `${fmt(r.ep3)} €` : '—', color: (r) => r.phase3Months > 0 ? 'text-emerald-600 font-black' : 'text-slate-400' },
+                  { label: 'Versement mensuel phase 3', key: (r) => r.phase3Months > 0 ? `${fmt(r.ep3)} €` : '—', raw: (r) => r.ep3, lib: false, color: (r) => r.phase3Months > 0 ? 'text-emerald-600 font-black' : 'text-slate-400' },
                 ] : []),
                 { label: '— BILAN —', header: true },
-                { label: 'Coût total intérêts+assur.', key: (r) => `${fmt(r.coutInteretsAssurance)} €`, color: () => 'text-rose-600' },
-                { label: 'Patrimoine financier final', key: (r) => `${fmt(r.valPatrimoineFinancier)} €`, color: () => 'text-emerald-600 font-black' },
-                { label: 'Mensualité ressentie moy.', key: (r) => `${fmt(Math.max(0, r.mensualiteRessentie))} €`, color: (r) => r.mensualiteRessentie < r.pmt1.total * 0.5 ? 'text-emerald-600' : '' },
+                { label: 'Coût total intérêts+assur.', key: (r) => `${fmt(r.coutInteretsAssurance)} €`, raw: (r) => r.coutInteretsAssurance, lib: true, color: () => 'text-rose-600' },
+                { label: 'Patrimoine financier final', key: (r) => `${fmt(r.valPatrimoineFinancier)} €`, raw: (r) => r.valPatrimoineFinancier, lib: false, color: () => 'text-emerald-600 font-black' },
+                { label: 'Mensualité ressentie moy.', key: (r) => `${fmt(Math.max(0, r.mensualiteRessentie))} €`, raw: (r) => r.mensualiteRessentie, lib: true, color: (r) => r.mensualiteRessentie < r.pmt1.total * 0.5 ? 'text-emerald-600' : '' },
               ].map((row, idx) => {
                 if (row.header) {
                   return (
@@ -590,11 +812,27 @@ export default function AnalysePage({ currentScenario, globalSettings }) {
                 return (
                   <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-2.5 text-[10px] font-bold text-slate-500">{row.label}</td>
-                    {results.map((r, i) => (
-                      <td key={i} className={cn('px-4 py-2.5 text-center text-[11px] font-black', row.color ? row.color(r) : 'text-slate-800')}>
-                        {row.key(r)}
-                      </td>
-                    ))}
+                    {results.map((r, i) => {
+                      const cmpR = compareSimResults?.[i];
+                      let delta = null;
+                      if (row.raw && cmpR) {
+                        const d = row.raw(r) - row.raw(cmpR);
+                        if (Math.abs(d) >= 0.5) {
+                          const isGood = row.lib ? d < 0 : d > 0;
+                          const sign = d > 0 ? '+' : '';
+                          const txt = row.isPercent ? `${sign}${d.toFixed(1)} %`
+                            : row.isMonths ? `${sign}${Math.round(d)} mois`
+                            : `${sign}${Math.round(d).toLocaleString()} €`;
+                          delta = <span className={`block text-[9px] font-black mt-0.5 ${isGood ? 'text-emerald-500' : 'text-rose-500'}`}>{txt}</span>;
+                        }
+                      }
+                      return (
+                        <td key={i} className={cn('px-4 py-2.5 text-center text-[11px] font-black', row.color ? row.color(r) : 'text-slate-800')}>
+                          {row.key(r)}
+                          {delta}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
