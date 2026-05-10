@@ -118,7 +118,7 @@ const BudgetModal = ({ isOpen, onClose, items, total }) => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className="text-[10px] font-black text-slate-400">{percent.toFixed(1)}%</span>
+                      <span className="text-[10px] font-black text-slate-400">{percent.toFixed(3)}%</span>
                     </td>
                   </tr>
                 );
@@ -153,6 +153,160 @@ const HelpTip = ({ title, content, position = 'top', align = 'center' }) => (
     </div>
   </div>
 );
+
+function FeePercentRow({ label, rate, amount, base, baseLabel, onRate, onAmount }) {
+  const [mode, setMode] = React.useState('pct');
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[9px] text-slate-400 shrink-0">{label}</span>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setMode(m => m === 'pct' ? 'eur' : 'pct')} className="text-[8px] font-black text-slate-300 hover:text-indigo-400 transition-colors px-1 py-0.5 rounded border border-slate-200 hover:border-indigo-300">
+          {mode === 'pct' ? '%' : '€'}
+        </button>
+        {mode === 'pct' ? (
+          <>
+            <input
+              type="number" step="0.001"
+              value={rate}
+              onChange={e => onRate(+e.target.value)}
+              className="w-16 text-right text-[9px] font-black bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 outline-none focus:border-indigo-400"
+            />
+            <span className="text-[8px] text-slate-400">% {baseLabel ?? `= ${Math.round(amount).toLocaleString()} €`}</span>
+          </>
+        ) : (
+          <>
+            <input
+              type="number" step="100"
+              value={Math.round(amount)}
+              onChange={e => onAmount(+e.target.value)}
+              className="w-20 text-right text-[9px] font-black bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 outline-none focus:border-indigo-400"
+            />
+            <span className="text-[8px] text-slate-400">€</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FeeAmountRow({ label, value, onChange }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[9px] text-slate-400 shrink-0">{label}</span>
+      <div className="flex items-center gap-1">
+        <input
+          type="number" step="100"
+          value={Math.round(value)}
+          onChange={e => onChange(+e.target.value)}
+          className="w-20 text-right text-[9px] font-black bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 outline-none focus:border-indigo-400"
+        />
+        <span className="text-[8px] text-slate-400">€</span>
+      </div>
+    </div>
+  );
+}
+
+function SidebarFeeControl({ 
+  label, 
+  type = 'percent', 
+  rate, 
+  amount, 
+  onRateChange, 
+  onAmountChange, 
+  resetValue, 
+  precision = 2,
+  isGuarantee = false,
+  guaranteeOverride = false
+}) {
+  const [mode, setMode] = useState(isGuarantee && guaranteeOverride ? 'eur' : (type === 'percent' ? 'pct' : 'eur'));
+  
+  useEffect(() => {
+    if (isGuarantee) {
+      setMode(guaranteeOverride ? 'eur' : 'pct');
+    }
+  }, [guaranteeOverride, isGuarantee]);
+
+  const handleModeToggle = () => {
+    const newMode = mode === 'pct' ? 'eur' : 'pct';
+    setMode(newMode);
+    if (isGuarantee && newMode === 'pct') {
+      onRateChange(rate);
+    }
+  };
+
+  const step = 1 / Math.pow(10, precision);
+
+  return (
+    <div className="group space-y-1.5 py-1">
+      <div className="flex justify-between items-center h-7">
+        <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight group-hover:text-slate-400 transition-colors">{label}</span>
+        
+        <div className="flex items-center gap-1.5">
+          {/* Toggle button */}
+          {type === 'percent' && (
+            <button 
+              onClick={handleModeToggle}
+              className={cn(
+                "w-6 h-6 flex items-center justify-center text-[9px] font-black rounded-lg transition-all border shadow-sm",
+                mode === 'pct' 
+                  ? "bg-slate-700 text-white border-slate-600 shadow-slate-900/20" 
+                  : "bg-slate-800 text-slate-500 border-slate-700 hover:border-slate-600"
+              )}
+            >
+              {mode === 'pct' ? '%' : '€'}
+            </button>
+          )}
+          
+          <div className="flex items-center bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 shadow-inner">
+            <button 
+              onClick={() => mode === 'pct' ? onRateChange(Number(Math.max(0, rate - step).toFixed(precision))) : onAmountChange(Math.max(0, Math.round(amount) - 100))}
+              className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 rounded-md transition-all"
+            >
+              <Minus size={10} />
+            </button>
+            
+            <input 
+              type="number" 
+              step={mode === 'pct' ? step : 100}
+              value={mode === 'pct' ? rate : Math.round(amount)} 
+              onChange={(e) => mode === 'pct' ? onRateChange(Number(e.target.value)) : onAmountChange(Number(e.target.value))} 
+              className={cn(
+                "bg-transparent text-white text-[11px] font-black text-center outline-none tabular-nums",
+                mode === 'pct' ? (isGuarantee ? "w-14" : "w-10") : "w-16"
+              )}
+            />
+            
+            <button 
+              onClick={() => mode === 'pct' ? onRateChange(Number((rate + step).toFixed(precision))) : onAmountChange(Math.round(amount) + 100)}
+              className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 rounded-md transition-all"
+            >
+              <Plus size={10} />
+            </button>
+          </div>
+
+          {resetValue !== undefined && (
+            <button 
+              onClick={() => {
+                if (isGuarantee) setMode('pct');
+                onRateChange(resetValue);
+              }} 
+              className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+              title="Réinitialiser"
+            >
+              <RotateCcw size={10} />
+            </button>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex justify-end h-3">
+         <span className="text-[9px] text-slate-600 font-bold uppercase tracking-tight tabular-nums">
+           {mode === 'pct' ? (isGuarantee ? "Sur capital emprunté" : `≈ ${Math.round(amount).toLocaleString()} €`) : (mode === 'eur' && type === 'percent' ? `${rate.toFixed(precision)} %` : "")}
+         </span>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const getInitialPage = () => {
@@ -228,12 +382,12 @@ function App() {
     if (initialState?.scenarios) return initialState.scenarios;
     return [
       { 
-        id: 0, name: "🏠 Actuel (Locataire)", price: 0, surface: 0, apport: 0, rate: 0, insurance: 0, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.28, agencyRate: 2.8,
+        id: 0, name: "🏠 Actuel (Locataire)", price: 0, surface: 0, apport: 0, rate: 0, insurance: 0, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.276, agencyRate: 2.8,
         rent: FACTORY_SETTINGS.rent, income: FACTORY_SETTINGS.incomeJess, income2: FACTORY_SETTINGS.incomeRenaud,
         budget: { ...FACTORY_SETTINGS.budget } 
       },
       { 
-        id: 1, name: "Option A", price: 430000, surface: 120, apport: 165000, rate: 3.8, insurance: 0.5, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.28, agencyRate: 2.8, brokerFee: 4120,
+        id: 1, name: "Option A", price: 430000, surface: 120, apport: 165000, rate: 3.8, insurance: 0.5, duration: 25, dpe: 'D', travaux: 0, notaryRate: 7.276, agencyRate: 2.8, brokerFee: 4120,
         rent: FACTORY_SETTINGS.rent, income: FACTORY_SETTINGS.incomeJess, income2: FACTORY_SETTINGS.incomeRenaud,
         budget: { ...FACTORY_SETTINGS.budget } 
       }
@@ -393,16 +547,16 @@ function App() {
       const projectedIncome = (s.income || 0) + (s.income2 || 0);
       
       const agencyFees = s.price * ((s.agencyRate || 0) / 100);
-      const notaryFees = s.price * ((s.notaryRate || 7.28) / 100);
-      
+      const notaryFees = s.price * ((s.notaryRate || 7.276) / 100);
+      const guaranteeRate = s.guaranteeRate ?? 0.6345;
+
       // Frais annexes (Dossier, Garantie, Courtage) — 0 si pas de bien
       const bankFee = s.price > 0 ? (s.bankFee ?? 1500) : 0;
       const brokerFee = s.price > 0 ? (s.brokerFee ?? 4100) : 0;
       const initialTotal = s.price + agencyFees + notaryFees + (s.travaux || 0) + bankFee + brokerFee;
       const loanBeforeGuarantee = Math.max(0, initialTotal - s.apport);
 
-      // Estimation automatique (0.869% du prêt avant garantie pour simuler ~0.86% du prêt final)
-      const guaranteeFee = s.price > 0 ? (s.guaranteeFee ?? (loanBeforeGuarantee * 0.00869)) : 0;
+      const guaranteeFee = s.price > 0 ? (s.guaranteeFee ?? (loanBeforeGuarantee * guaranteeRate / 100)) : 0;
 
       const totalAcquisition = initialTotal + guaranteeFee;
       const loanAmount = Math.max(0, totalAcquisition - s.apport);
@@ -443,7 +597,8 @@ function App() {
       // On ajuste le montant à réduire par le ratio de garantie (1.00869) 
       // car chaque euro d'apport en moins réduit aussi la garantie.
       const isGuaranteeDynamic = s.guaranteeFee === undefined || s.guaranteeFee === null;
-      const guaranteeRatio = isGuaranteeDynamic ? 1.00869 : 1;
+      const guaranteeRateFactor = 1 + guaranteeRate / 100;
+      const guaranteeRatio = isGuaranteeDynamic ? guaranteeRateFactor : 1;
       const loanToReduce = (monthlyExceeding * factor) / guaranteeRatio;
 
       const inflationData = Array.from({ length: 6 }, (_, i) => ({
@@ -451,8 +606,8 @@ function App() {
         realValue: calculateInflationImpact(payment.total, inflationRate, i * 5)
       }));
 
-      const minApportAt35 = isGuaranteeDynamic 
-        ? Math.max(0, initialTotal - loanCapacity / 1.00869)
+      const minApportAt35 = isGuaranteeDynamic
+        ? Math.max(0, initialTotal - loanCapacity / guaranteeRateFactor)
         : Math.max(0, totalAcquisition - loanCapacity);
 
       return { 
@@ -473,10 +628,11 @@ function App() {
         minApportAt35,
         bankFee,
         guaranteeFee,
+        guaranteeRate,
         brokerFee,
         totalAcquisition,
         requiredExtraApport: loanToReduce, 
-        priceNegotiation: loanToReduce / (1 + (s.notaryRate || 7.28) / 100), 
+        priceNegotiation: loanToReduce / (1 + (s.notaryRate || 7.276) / 100), 
         totalBudget 
       };
     });
@@ -507,7 +663,7 @@ function App() {
         insurance: s.id === 0 ? 0 : 0.5,
         duration: 25,
         agencyRate: 2.8,
-        notaryRate: 7.28,
+        notaryRate: 7.276,
         brokerFee: s.id === 0 ? undefined : 4120,
         budget: { ...globalSettings.budget }
       };
@@ -534,7 +690,7 @@ function App() {
     const isPositive = lowerIsBetter ? d < 0 : d > 0;
     const sign = d > 0 ? '+' : '';
     const formatted = isPercent
-      ? `${sign}${d.toFixed(2)} %`
+      ? `${sign}${d.toFixed(3)} %`
       : `${sign}${Math.round(d).toLocaleString()} ${unit}`;
     return (
       <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
@@ -734,295 +890,232 @@ function App() {
         )}
       </AnimatePresence>
 
-      {activePage === 'biens' ? (
-        <BienPage />
-      ) : activePage === 'analyse' ? (
-        <AnalysePage currentScenario={currentScenario} globalSettings={globalSettings} currentResults={currentResults} />
-      ) : (
-        <>
-          <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
-        <header className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-              Renaud & Jessica <span className="text-slate-400 font-medium">| Dashboard</span>
-            </h2>
-            {currentScenario.adUrl && (
-              <a href={currentScenario.adUrl} target="_blank" rel="noopener noreferrer" className="inline-flex mt-1 bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase items-center gap-2 hover:bg-slate-200 transition-all">
-                Voir l'annonce <ExternalLink size={12} />
-              </a>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-white border border-slate-100 rounded-xl px-2.5 py-1.5 shadow-sm">
-              <ArrowLeftRight size={11} className="text-slate-400 shrink-0" />
-              <span className="hidden sm:inline text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer</span>
-              <select
-                value={compareWithId ?? ''}
-                onChange={e => setCompareWithId(e.target.value === '' ? null : Number(e.target.value))}
-                className="bg-transparent text-[11px] font-black text-slate-700 outline-none cursor-pointer max-w-[120px]"
-              >
-                <option value="">Aucun</option>
-                {scenarios.filter(s => s.id !== currentScenarioId).map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              {compareWithId !== null && (
-                <button onClick={() => setCompareWithId(null)} className="text-slate-300 hover:text-slate-500 transition-colors">
-                  <X size={11} />
-                </button>
-              )}
-            </div>
-            <button onClick={() => openModal('create')} className="bg-brand-primary text-white px-3 md:px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all flex items-center gap-1.5">
-              <Plus size={14} /> <span className="hidden sm:inline">Nouveau </span>Scénario
-            </button>
-          </div>
-        </header>
+      <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden">
+        {/* Page : Biens */}
+        <div className={cn("flex-1 h-full overflow-hidden", activePage === 'biens' ? "block" : "hidden")}>
+          <BienPage />
+        </div>
 
-        <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
-          {/* Ligne 1 : données financières */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-0 lg:divide-x lg:divide-slate-100">
-            <div className="p-2 lg:p-0 lg:pr-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Prix du Bien</p>
-              <div className="flex items-baseline gap-1 flex-wrap">
-                <input
-                  type="number"
-                  className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-24"
-                  value={currentScenario.price}
-                  onChange={(e) => updateCurrentScenario('price', Number(e.target.value))}
-                />
-                <span className="text-sm font-black text-slate-400">€</span>
-                <DeltaBadge current={currentScenario.price} compare={compareScenario?.price} />
-              </div>
-            </div>
-            <div className="p-2 lg:p-0 lg:px-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Surface</p>
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <input
-                  type="number"
-                  className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-16"
-                  value={currentScenario.surface || 0}
-                  onChange={(e) => updateCurrentScenario('surface', Number(e.target.value))}
-                />
-                <span className="text-sm font-black text-slate-400">m²</span>
-              </div>
-              {currentScenario.surface > 0 && (
-                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">
-                  {Math.round(currentScenario.price / currentScenario.surface).toLocaleString()} €/m²
-                </p>
-              )}
-            </div>
-            <div className="p-2 lg:p-0 lg:px-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Votre Apport</p>
-              <div className="flex items-baseline gap-1 flex-wrap">
-                <input
-                  type="number"
-                  className="bg-transparent border-none p-0 text-xl font-black text-brand-secondary focus:ring-0 w-24"
-                  value={currentScenario.apport}
-                  onChange={(e) => updateCurrentScenario('apport', Number(e.target.value))}
-                />
-                <span className="text-sm font-black text-slate-400">€</span>
-                <DeltaBadge current={currentScenario.apport} compare={compareScenario?.apport} />
-              </div>
-            </div>
-            {(() => {
-              const restant = (globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - currentScenario.apport;
-              return (
-                <div className="p-2 lg:p-0 lg:px-4">
-                  <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                    Épargne Restante
-                    <HelpTip title="Épargne Restante" content="Épargne totale disponible moins l'apport engagé dans ce scénario. Représente la réserve de liquidités conservée après l'achat." position="bottom" />
-                  </div>
-                  <div className="flex items-baseline gap-1 flex-wrap">
-                    <p className={`text-xl font-black leading-tight ${restant >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                      {Math.round(restant).toLocaleString()}&nbsp;€
-                    </p>
-                    {compareScenario && (
-                      <DeltaBadge current={restant} compare={(globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - compareScenario.apport} lowerIsBetter={false} />
-                    )}
-                  </div>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                    sur {(globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale).toLocaleString()} € total
-                  </p>
-                </div>
-              );
-            })()}
-            <div className="p-2 lg:p-0 lg:px-4">
-              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                Capacité Bancaire (35%)
-                <HelpTip title="Revenu de Référence" content="Basé sur le revenu bancaire de référence de Renaud et Jess cumulé (salaires, primes et BNC lissés)." position="bottom" />
-              </div>
-              <p className="text-xl font-black text-slate-800">
-                {Math.round((currentResults.bankIncome * 0.35)).toLocaleString()}&nbsp;€
-              </p>
-            </div>
-          </div>
-          <div className="border-t border-slate-100" />
-          {/* Ligne 2 : paramètres du prêt */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 lg:gap-0 lg:divide-x lg:divide-slate-100">
-            <div className="p-2 lg:p-0 lg:pr-4">
-              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                Revenus Cumulés
-                <HelpTip title="Revenus Bancaires" content="Revenus configurés par défaut (salaires, primes et BNC lissés), utilisés comme référence bancaire pour le calcul du taux d'endettement." position="bottom" />
-              </div>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Référence endettement</p>
-              <p className="text-xl font-black text-slate-900 leading-tight">
-                {Math.round(currentResults.bankIncome).toLocaleString()}&nbsp;€
-              </p>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                Jess {Math.round(globalSettings.incomeJess).toLocaleString()} + Renaud {Math.round(globalSettings.incomeRenaud).toLocaleString()}
-              </p>
-            </div>
-            <div className="p-2 lg:p-0 lg:px-4">
-              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                Revenus Cumulés
-                <HelpTip title="Revenus Mensuels Nets" content="Cumul des revenus nets mensuels configurés dans le scénario, utilisés pour le budget et le calcul du Reste à Vivre." position="bottom" />
-              </div>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Pour le budget &amp; RAV</p>
-              <p className="text-xl font-black text-slate-900 leading-tight">
-                {Math.round(currentScenario.income + currentScenario.income2).toLocaleString()}&nbsp;€
-              </p>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                Jess {Math.round(currentScenario.income).toLocaleString()} + Renaud {Math.round(currentScenario.income2).toLocaleString()}
-              </p>
-            </div>
-            <div className="p-2 lg:p-0 lg:px-4">
-              <p className="text-[10px] font-black text-emerald-500 uppercase mb-1">Épargne ({currentScenario.duration} ans)</p>
-              <div className="flex items-baseline gap-1 flex-wrap">
-                <p className="text-xl font-black text-emerald-600 leading-tight">
-                  {Math.round((typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount) * 12 * currentScenario.duration).toLocaleString()}&nbsp;€
-                </p>
-                {compareScenario && (
-                  <DeltaBadge
-                    current={(typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount) * 12 * currentScenario.duration}
-                    compare={(typeof compareScenario.budget.epargne === 'number' ? compareScenario.budget.epargne : compareScenario.budget.epargne.amount) * 12 * compareScenario.duration}
-                  />
+        {/* Page : Analyse */}
+        <div className={cn("flex-1 h-full overflow-hidden flex", activePage === 'analyse' ? "flex" : "hidden")}>
+          <AnalysePage 
+            currentScenario={currentScenario} 
+            globalSettings={globalSettings} 
+            currentResults={currentResults} 
+            isMobileAsideOpen={isMobileAsideOpen}
+            setIsMobileAsideOpen={setIsMobileAsideOpen} 
+          />
+        </div>
+
+        {/* Page : Dashboard (Défaut) */}
+        <div className={cn("flex-1 h-full overflow-hidden flex flex-col", (activePage === 'dashboard' || !activePage) ? "flex" : "hidden")}>
+          <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
+            <header className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                  Renaud & Jessica <span className="text-slate-400 font-medium">| Dashboard</span>
+                </h2>
+                {currentScenario.adUrl && (
+                  <a href={currentScenario.adUrl} target="_blank" rel="noopener noreferrer" className="inline-flex mt-1 bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase items-center gap-2 hover:bg-slate-200 transition-all">
+                    Voir l'annonce <ExternalLink size={12} />
+                  </a>
                 )}
               </div>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
-                {Math.round(typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount).toLocaleString()}€ x 12 x {currentScenario.duration} ans
-              </p>
-            </div>
-            <div className="p-2 lg:p-0 lg:px-4">
-              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                Budget Mensuel
-                <HelpTip title="Budget Mensuel Détaillé" content="Somme de tous les postes du budget mensuel détaillé, hors épargne." position="bottom" />
-              </div>
-              <div className="flex items-baseline gap-1 flex-wrap">
-                <p className="text-xl font-black text-slate-900">{Math.round(currentResults.totalBudget).toLocaleString()}&nbsp;€</p>
-                <DeltaBadge current={currentResults.totalBudget} compare={compareResults?.totalBudget} lowerIsBetter={true} />
-              </div>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">hors épargne</p>
-            </div>
-            <div className="p-2 lg:p-0 lg:px-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Taux Fixe</p>
-              <div className="flex items-baseline gap-1 flex-wrap">
-                <p className="text-xl font-black text-slate-900">{currentScenario.rate.toFixed(2)} %</p>
-                {compareScenario && <DeltaBadge current={currentScenario.rate} compare={compareScenario.rate} lowerIsBetter={true} isPercent={true} />}
-              </div>
-            </div>
-            <div className="p-2 lg:p-0 lg:px-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Durée</p>
-              <div className="flex items-baseline gap-1 flex-wrap">
-                <p className="text-xl font-black text-slate-900">{currentScenario.duration} ans</p>
-                {compareScenario && <DeltaBadge current={currentScenario.duration} compare={compareScenario.duration} unit="ans" lowerIsBetter={false} />}
-              </div>
-            </div>
-          </div>
-        </div>
+            </header>
 
-        {/* LIGNE 1: INDICATEURS CLÉS (KPIs) */}
-        <div className="grid grid-cols-2 xl:grid-cols-6 gap-3 md:gap-6">
-          <div className="glass-card rounded-[2rem] overflow-hidden">
-            <button className="w-full p-6 text-left flex items-start justify-between gap-2" onClick={() => setShowFeeDetail(v => !v)}>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Opération</p>
-                <div className="flex items-baseline gap-1 flex-wrap">
-                  <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</p>
+            <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+              {/* Ligne 1 : bien + apport */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-0 lg:divide-x lg:divide-slate-100">
+                <div className="p-2 lg:p-0 lg:pr-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Prix du Bien</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <input type="number" className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-24" value={currentScenario.price} onChange={(e) => updateCurrentScenario('price', Number(e.target.value))} />
+                    <span className="text-sm font-black text-slate-400">€</span>
+                    <DeltaBadge current={currentScenario.price} compare={compareScenario?.price} />
+                  </div>
+                </div>
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Surface</p>
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <input type="number" className="bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 w-16" value={currentScenario.surface || 0} onChange={(e) => updateCurrentScenario('surface', Number(e.target.value))} />
+                    <span className="text-sm font-black text-slate-400">m²</span>
+                  </div>
+                  {currentScenario.surface > 0 && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">{Math.round(currentScenario.price / currentScenario.surface).toLocaleString()} €/m²</p>}
+                </div>
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Votre Apport</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <input type="number" className="bg-transparent border-none p-0 text-xl font-black text-brand-secondary focus:ring-0 w-24" value={currentScenario.apport} onChange={(e) => updateCurrentScenario('apport', Number(e.target.value))} />
+                    <span className="text-sm font-black text-slate-400">€</span>
+                    <DeltaBadge current={currentScenario.apport} compare={compareScenario?.apport} />
+                  </div>
+                </div>
+                {(() => {
+                  const restant = (globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - currentScenario.apport;
+                  return (
+                    <div className="p-2 lg:p-0 lg:px-4">
+                      <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                        Épargne Restante
+                        <HelpTip title="Épargne Restante" content="Épargne totale disponible moins l'apport engagé dans ce scénario." position="bottom" />
+                      </div>
+                      <p className={`text-xl font-black leading-tight ${restant >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{Math.round(restant).toLocaleString()}&nbsp;€</p>
+                      {compareScenario && <DeltaBadge current={restant} compare={(globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale) - compareScenario.apport} lowerIsBetter={false} />}
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">sur {(globalSettings.epargneTotale ?? FACTORY_SETTINGS.epargneTotale).toLocaleString()} € total</p>
+                    </div>
+                  );
+                })()}
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                    Capacité Bancaire (35%)
+                    <HelpTip title="Revenu de Référence" content="Basé sur le revenu bancaire de référence de Renaud et Jess cumulé." position="bottom" />
+                  </div>
+                  <p className="text-xl font-black text-slate-800">{Math.round(currentResults.bankIncome * 0.35).toLocaleString()}&nbsp;€</p>
+                </div>
+              </div>
+              <div className="border-t border-slate-100" />
+              {/* Ligne 2 : revenus + crédit params */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 lg:gap-0 lg:divide-x lg:divide-slate-100">
+                <div className="p-2 lg:p-0 lg:pr-4">
+                  <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                    Revenus Cumulés
+                    <HelpTip title="Revenus Bancaires" content="Revenus configurés par défaut, utilisés comme référence bancaire pour le taux d'endettement." position="bottom" />
+                  </div>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Référence endettement</p>
+                  <p className="text-xl font-black text-slate-900 leading-tight">{Math.round(currentResults.bankIncome).toLocaleString()}&nbsp;€</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Jess {Math.round(globalSettings.incomeJess).toLocaleString()} + Renaud {Math.round(globalSettings.incomeRenaud).toLocaleString()}</p>
+                </div>
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                    Revenus Cumulés
+                    <HelpTip title="Revenus Mensuels Nets" content="Cumul des revenus nets mensuels configurés dans le scénario, pour le budget et le RAV." position="bottom" />
+                  </div>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Pour le budget &amp; RAV</p>
+                  <p className="text-xl font-black text-slate-900 leading-tight">{Math.round((currentScenario.income || 0) + (currentScenario.income2 || 0)).toLocaleString()}&nbsp;€</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Jess {Math.round(currentScenario.income || 0).toLocaleString()} + Renaud {Math.round(currentScenario.income2 || 0).toLocaleString()}</p>
+                </div>
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <p className="text-[10px] font-black text-emerald-500 uppercase mb-1">Épargne ({currentScenario.duration} ans)</p>
+                  {(() => { const ep = typeof currentScenario.budget.epargne === 'number' ? currentScenario.budget.epargne : currentScenario.budget.epargne.amount; return (<>
+                    <p className="text-xl font-black text-emerald-600 leading-tight">{Math.round(ep * 12 * currentScenario.duration).toLocaleString()}&nbsp;€</p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{Math.round(ep).toLocaleString()}€ x 12 x {currentScenario.duration} ans</p>
+                  </>); })()}
+                </div>
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                    Budget Mensuel
+                    <HelpTip title="Budget Mensuel Détaillé" content="Somme de tous les postes du budget mensuel détaillé, hors épargne." position="bottom" />
+                  </div>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className="text-xl font-black text-slate-900">{Math.round(currentResults.totalBudget).toLocaleString()}&nbsp;€</p>
+                    <DeltaBadge current={currentResults.totalBudget} compare={compareResults?.totalBudget} lowerIsBetter={true} />
+                  </div>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">hors épargne</p>
+                </div>
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Taux Fixe</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className="text-xl font-black text-slate-900">{currentScenario.rate.toFixed(2)} %</p>
+                    {compareScenario && <DeltaBadge current={currentScenario.rate} compare={compareScenario.rate} lowerIsBetter={true} isPercent={true} />}
+                  </div>
+                </div>
+                <div className="p-2 lg:p-0 lg:px-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Durée</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className="text-xl font-black text-slate-900">{currentScenario.duration} ans</p>
+                    {compareScenario && <DeltaBadge current={currentScenario.duration} compare={compareScenario.duration} lowerIsBetter={false} />}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* LIGNE 1: INDICATEURS CLÉS (KPIs) */}
+            <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-3 md:gap-4">
+              {/* Total Opération — colonne gauche, toujours déployée */}
+              <div className="glass-card p-5 rounded-[2rem]">
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Opération</p>
+                <div className="flex items-baseline gap-1 flex-wrap mb-4">
+                  <p className="text-3xl font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</p>
                   <DeltaBadge current={currentResults.totalAcquisition} compare={compareResults?.totalAcquisition} lowerIsBetter={true} />
                 </div>
-              </div>
-              {showFeeDetail ? <ChevronUp size={14} className="text-slate-400 mt-1 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 mt-1 shrink-0" />}
-            </button>
-            {showFeeDetail && (
-              <div className="px-6 pb-5 space-y-1 border-t border-slate-100 pt-4">
-                {[
-                  { label: 'Prix du bien', value: currentScenario.price, base: true },
-                  { label: `Frais d'agence (${currentScenario.agencyRate ?? 0} %)`, value: currentResults.agencyFees },
-                  { label: `Frais de notaire (${currentScenario.notaryRate ?? 7.28} %)`, value: currentResults.notaryFees },
-                  ...(currentScenario.travaux > 0 ? [{ label: 'Travaux', value: currentScenario.travaux }] : []),
-                  { label: 'Frais bancaires', value: currentResults.bankFee },
-                  { label: 'Courtage', value: currentResults.brokerFee },
-                  { label: 'Garantie caution', value: currentResults.guaranteeFee, note: '≈ 0.869 % du prêt' },
-                ].map((row, i) => (
-                  <div key={i} className="flex items-baseline justify-between gap-2">
-                    <span className={`text-[9px] ${row.base ? 'font-black text-slate-600' : 'text-slate-400'}`}>
-                      {!row.base && <span className="text-slate-300 mr-1">+</span>}{row.label}
-                    </span>
-                    <span className={`text-[10px] font-black tabular-nums ${row.base ? 'text-slate-700' : 'text-slate-500'}`}>
-                      {Math.round(row.value).toLocaleString()} €
-                    </span>
+                <div className="space-y-2 border-t border-slate-100 pt-4">
+                  {[
+                    { label: 'Prix du bien', value: currentScenario.price, base: true },
+                    { label: `Frais d'agence`, value: currentResults.agencyFees },
+                    { label: `Frais de notaire`, value: currentResults.notaryFees },
+                    ...(currentScenario.travaux > 0 ? [{ label: 'Travaux', value: currentScenario.travaux }] : []),
+                    { label: 'Frais bancaires', value: currentResults.bankFee },
+                    { label: 'Courtage', value: currentResults.brokerFee },
+                    { label: 'Garantie caution', value: currentResults.guaranteeFee },
+                  ].map((row, i) => {
+                    const pct = currentResults.totalAcquisition > 0 ? (row.value / currentResults.totalAcquisition) * 100 : 0;
+                    return (
+                      <div key={i} className="flex items-baseline justify-between gap-2">
+                        <span className={`text-[11px] ${row.base ? 'font-black text-slate-700' : 'font-medium text-slate-400'}`}>
+                          {!row.base && <span className="text-slate-300 mr-1">+</span>}{row.label}
+                          {!row.base && <span className="text-[9px] font-bold text-brand-primary ml-1">({pct.toFixed(1)}%)</span>}
+                        </span>
+                        <span className={`text-[11px] font-black tabular-nums ${row.base ? 'text-slate-800' : 'text-slate-500'}`}>
+                          {Math.round(row.value).toLocaleString()} €
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-slate-200 pt-2 mt-1 flex justify-between items-baseline">
+                    <span className="text-[11px] font-black text-brand-primary uppercase tracking-wider">= Total</span>
+                    <span className="text-[14px] font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</span>
                   </div>
-                ))}
-                <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between items-baseline">
-                  <span className="text-[9px] font-black text-brand-primary uppercase tracking-wider">= Total</span>
-                  <span className="text-[11px] font-black text-brand-primary">{Math.round(currentResults.totalAcquisition).toLocaleString()} €</span>
                 </div>
               </div>
-            )}
-          </div>
-          <div className="glass-card p-6 rounded-[2rem]">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Montant Emprunté</p>
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <p className="text-2xl font-black text-slate-900">{Math.round(currentResults.loanAmount).toLocaleString()} €</p>
-              <DeltaBadge current={currentResults.loanAmount} compare={compareResults?.loanAmount} lowerIsBetter={true} />
+
+              {/* 5 autres KPIs — grille 2 colonnes */}
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <div className="glass-card p-5 rounded-[2rem]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Montant Emprunté</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className="text-2xl font-black text-slate-900">{Math.round(currentResults.loanAmount).toLocaleString()} €</p>
+                    <DeltaBadge current={currentResults.loanAmount} compare={compareResults?.loanAmount} lowerIsBetter={true} />
+                  </div>
+                </div>
+                <div className="glass-card p-5 rounded-[2rem]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Prix du Crédit</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className="text-2xl font-black text-rose-500">{Math.round(currentResults.cost.totalInterests + currentResults.cost.totalInsurance).toLocaleString()} €</p>
+                    <DeltaBadge current={currentResults.cost.totalInterests + currentResults.cost.totalInsurance} compare={compareResults ? compareResults.cost.totalInterests + compareResults.cost.totalInsurance : undefined} lowerIsBetter={true} />
+                  </div>
+                  <div className="flex gap-2 mt-1">
+                    <span className="text-[9px] font-bold text-slate-400">{Math.round(currentResults.cost.totalInterests).toLocaleString()} € intérêts</span>
+                    <span className="text-[9px] font-bold text-slate-300">·</span>
+                    <span className="text-[9px] font-bold text-slate-400">{Math.round(currentResults.cost.totalInsurance).toLocaleString()} € assurance</span>
+                  </div>
+                </div>
+                <div className="glass-card p-5 rounded-[2rem]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Mensualité Totale</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.payment.total).toLocaleString()} €</p>
+                    <DeltaBadge current={currentResults.payment.total} compare={compareResults?.payment.total} lowerIsBetter={true} />
+                  </div>
+                </div>
+                <div className="glass-card p-5 rounded-[2rem]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Reste à Vivre (RAV)</p>
+                  <div className="flex items-baseline gap-1 flex-wrap">
+                    <p className={cn("text-2xl font-black", currentResults.rav > 500 ? "text-emerald-500" : "text-rose-500")}>{Math.round(currentResults.rav).toLocaleString()} €</p>
+                    <DeltaBadge current={currentResults.rav} compare={compareResults?.rav} lowerIsBetter={false} />
+                  </div>
+                </div>
+                <div className="glass-card p-5 rounded-[2rem] col-span-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Taux d'Endettement</p>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-baseline gap-1 flex-wrap">
+                      <p className={cn("text-2xl font-black", currentResults.debtRatio > 35 ? "text-rose-500" : "text-slate-900")}>{currentResults.debtRatio.toFixed(2)} %</p>
+                      <DeltaBadge current={currentResults.debtRatio} compare={compareResults?.debtRatio} lowerIsBetter={true} isPercent={true} />
+                    </div>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={cn("h-full transition-all duration-500", currentResults.debtRatio > 35 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${Math.min(100, currentResults.debtRatio)}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="glass-card p-6 rounded-[2rem]">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Prix du Crédit</p>
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <p className="text-2xl font-black text-rose-500">{Math.round(currentResults.cost.totalInterests + currentResults.cost.totalInsurance).toLocaleString()} €</p>
-              <DeltaBadge current={currentResults.cost.totalInterests + currentResults.cost.totalInsurance} compare={compareResults ? compareResults.cost.totalInterests + compareResults.cost.totalInsurance : undefined} lowerIsBetter={true} />
-            </div>
-            <div className="flex gap-2 mt-1">
-              <span className="text-[8px] font-bold text-slate-400">{Math.round(currentResults.cost.totalInterests).toLocaleString()} € intérêts</span>
-              <span className="text-[8px] font-bold text-slate-300">·</span>
-              <span className="text-[8px] font-bold text-slate-400">{Math.round(currentResults.cost.totalInsurance).toLocaleString()} € assurance</span>
-            </div>
-          </div>
-          <div className="glass-card p-6 rounded-[2rem]">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Mensualité Totale</p>
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <p className="text-2xl font-black text-brand-primary">{Math.round(currentResults.payment.total).toLocaleString()} €</p>
-              <DeltaBadge current={currentResults.payment.total} compare={compareResults?.payment.total} lowerIsBetter={true} />
-            </div>
-          </div>
-          <div className="glass-card p-6 rounded-[2rem]">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Reste à Vivre (RAV)</p>
-            <div className="flex items-baseline gap-1 flex-wrap">
-              <p className={cn("text-2xl font-black", currentResults.rav > 500 ? "text-emerald-500" : "text-rose-500")}>
-                {Math.round(currentResults.rav).toLocaleString()} €
-              </p>
-              <DeltaBadge current={currentResults.rav} compare={compareResults?.rav} lowerIsBetter={false} />
-            </div>
-          </div>
-          <div className="glass-card p-6 rounded-[2rem]">
-            <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Taux d'Endettement</p>
-            <div className="flex items-center gap-3">
-               <div className="flex items-baseline gap-1 flex-wrap">
-                 <p className={cn("text-2xl font-black", currentResults.debtRatio > 35 ? "text-rose-500" : "text-slate-900")}>
-                   {currentResults.debtRatio.toFixed(2)} %
-                 </p>
-                 <DeltaBadge current={currentResults.debtRatio} compare={compareResults?.debtRatio} lowerIsBetter={true} isPercent={true} />
-               </div>
-               <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                 <div
-                   className={cn("h-full transition-all duration-500", currentResults.debtRatio > 35 ? "bg-rose-500" : "bg-emerald-500")}
-                   style={{ width: `${Math.min(100, currentResults.debtRatio)}%` }}
-                 />
-               </div>
-            </div>
-          </div>
-        </div>
 
         {/* LIGNE 3: RÉPARTITION DU BUDGET (FULL WIDTH) */}
         <div className="glass-card p-10 rounded-[3.5rem] space-y-12 mb-12 relative z-0">
@@ -1179,7 +1272,7 @@ function App() {
                           </p>
                           {baselineResults.rav > 0 && (
                             <span className={cn("text-[10px] font-black", (currentResults.rav - baselineResults.rav) >= 0 ? "text-emerald-500/70" : "text-rose-500/70")}>
-                              {(currentResults.rav - baselineResults.rav) >= 0 ? "+" : ""}{(((currentResults.rav - baselineResults.rav) / baselineResults.rav) * 100).toFixed(1)}%
+                              {(currentResults.rav - baselineResults.rav) >= 0 ? "+" : ""}{(((currentResults.rav - baselineResults.rav) / baselineResults.rav) * 100).toFixed(3)}%
                             </span>
                           )}
                         </div>
@@ -1200,6 +1293,8 @@ function App() {
           </div>
         </div>
       </main>
+    </div>
+    </div>
 
       {/* Overlay mobile pour fermer le panel */}
       {isMobileAsideOpen && (
@@ -1210,10 +1305,10 @@ function App() {
         style={{ width: `${sidebarWidth}px` }}
         className={cn(
           "bg-slate-900 border-l border-slate-800 flex flex-col relative transition-none text-white",
-          "md:flex",
+          activePage === 'dashboard' ? "md:flex" : "hidden",
           isMobileAsideOpen
             ? "fixed inset-y-0 right-0 z-50 w-full sm:w-96 flex"
-            : "hidden"
+            : ""
         )}
       >
         <div onMouseDown={() => setIsResizing(true)} className="hidden md:block absolute left-0 top-0 w-1.5 h-full cursor-col-resize hover:bg-brand-primary/30 z-50 active:bg-brand-primary transition-colors" />
@@ -1352,31 +1447,61 @@ function App() {
                     <button onClick={() => updateCurrentScenario('price', Math.min(800000, currentScenario.price + 1000))} className="text-slate-500 hover:text-brand-primary"><Plus size={12} /></button>
                   </div>
                 </div>
-                <div className="pt-2">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase block">Agence</label>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => updateCurrentScenario('agencyRate', Math.max(0, (currentScenario.agencyRate ?? 2.8) - 0.1))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
-                      <input type="number" step="0.1" value={currentScenario.agencyRate ?? 2.8} onChange={(e) => updateCurrentScenario('agencyRate', Number(e.target.value))} className="w-12 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
-                      <button onClick={() => updateCurrentScenario('agencyRate', Math.min(10, (currentScenario.agencyRate ?? 2.8) + 0.1))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
-                      <span className="text-[9px] text-slate-500 ml-0.5">%</span>
-                      <button onClick={() => updateCurrentScenario('agencyRate', 2.8)} className="p-1 text-slate-600 hover:text-white transition-colors ml-1"><RotateCcw size={10} /></button>
-                    </div>
-                  </div>
-                  <input type="range" min="0" max="10" step="0.1" value={currentScenario.agencyRate ?? 2.8} onChange={(e) => updateCurrentScenario('agencyRate', Number(e.target.value))} className="w-full h-1 accent-emerald-500 cursor-pointer" />
-                </div>
-                <div className="pt-2">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase block">Notaire</label>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => updateCurrentScenario('notaryRate', Math.max(0, (currentScenario.notaryRate || 7.28) - 0.01))} className="text-slate-500 hover:text-white"><Minus size={8} /></button>
-                      <input type="number" step="0.01" value={currentScenario.notaryRate || 7.28} onChange={(e) => updateCurrentScenario('notaryRate', Number(e.target.value))} className="w-14 bg-slate-800 text-white text-[10px] font-bold rounded p-0.5 text-right outline-none border border-slate-700" />
-                      <button onClick={() => updateCurrentScenario('notaryRate', Math.min(10, (currentScenario.notaryRate || 7.28) + 0.01))} className="text-slate-500 hover:text-white"><Plus size={8} /></button>
-                      <span className="text-[9px] text-slate-500 ml-0.5">%</span>
-                      <button onClick={() => updateCurrentScenario('notaryRate', 7.28)} className="p-1 text-slate-600 hover:text-white transition-colors ml-1"><RotateCcw size={10} /></button>
-                    </div>
-                  </div>
-                  <input type="range" min="2" max="10" step="0.01" value={currentScenario.notaryRate || 7.28} onChange={(e) => updateCurrentScenario('notaryRate', Number(e.target.value))} className="w-full h-1 accent-white cursor-pointer" />
+                <div className="pt-2 space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-2">Frais</label>
+                  
+                  {/* Agency Fee Control */}
+                  <SidebarFeeControl 
+                    label="Agence" 
+                    type="percent"
+                    rate={currentScenario.agencyRate ?? 2.8}
+                    amount={currentResults.agencyFees}
+                    onRateChange={(v) => updateCurrentScenario('agencyRate', v)}
+                    onAmountChange={(v) => currentScenario.price > 0 && updateCurrentScenario('agencyRate', +(v / currentScenario.price * 100).toFixed(4))}
+                    resetValue={2.8}
+                  />
+
+                  {/* Notary Fee Control */}
+                  <SidebarFeeControl 
+                    label="Notaire" 
+                    type="percent"
+                    rate={currentScenario.notaryRate ?? 7.276}
+                    amount={currentResults.notaryFees}
+                    onRateChange={(v) => updateCurrentScenario('notaryRate', v)}
+                    onAmountChange={(v) => currentScenario.price > 0 && updateCurrentScenario('notaryRate', +(v / currentScenario.price * 100).toFixed(4))}
+                    resetValue={7.276}
+                    precision={3}
+                  />
+
+                  {/* Guarantee Fee Control */}
+                  <SidebarFeeControl 
+                    label="Garantie caution" 
+                    type="percent"
+                    rate={currentResults.guaranteeRate}
+                    amount={currentResults.guaranteeFee}
+                    onRateChange={(v) => { updateCurrentScenario('guaranteeRate', v); updateCurrentScenario('guaranteeFee', undefined); }}
+                    onAmountChange={(v) => updateCurrentScenario('guaranteeFee', v)}
+                    resetValue={0.6345}
+                    precision={4}
+                    isGuarantee={true}
+                    guaranteeOverride={currentScenario.guaranteeFee !== undefined}
+                  />
+
+                  {/* Bank Fee Control */}
+                  <SidebarFeeControl 
+                    label="Frais bancaires" 
+                    type="amount"
+                    amount={currentResults.bankFee}
+                    onAmountChange={(v) => updateCurrentScenario('bankFee', v)}
+                  />
+
+                  {/* Broker Fee Control */}
+                  <SidebarFeeControl 
+                    label="Courtage" 
+                    type="amount"
+                    amount={currentResults.brokerFee}
+                    onAmountChange={(v) => updateCurrentScenario('brokerFee', v)}
+                  />
                 </div>
               </div>
             )}
@@ -1709,7 +1834,7 @@ function App() {
                         currentResults.debtRatio > 35 ? "text-rose-500" : 
                         currentResults.debtRatio > 33 ? "text-amber-500" : "text-emerald-400"
                       )}>
-                        {currentResults.debtRatio.toFixed(1)}%
+                        {currentResults.debtRatio.toFixed(3)}%
                       </div>
                       <span className="text-[8px] font-black uppercase tracking-tighter mt-1 opacity-60">
                         {currentResults.debtRatio <= 35 ? "✓ Limite HCSF Respectée" : "✕ Hors Limites HCSF"}
@@ -1734,8 +1859,6 @@ function App() {
           </div>
         </div>
         </aside>
-      </>
-    )}
 
       <AnimatePresence>
         {isSettingsOpen && (
