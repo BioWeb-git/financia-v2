@@ -1710,7 +1710,7 @@ function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-slate-900 border border-slate-800 rounded-[3rem] p-10 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-3xl"
+              className="bg-slate-900 border border-slate-800 rounded-[2rem] md:rounded-[3rem] p-5 md:p-10 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-3xl"
             >
               <div className="flex justify-between items-start mb-8">
                 <div className="flex items-center gap-4">
@@ -1732,7 +1732,7 @@ function App() {
                   <h3 className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <span className="w-8 h-px bg-slate-800" /> Rémunération Jess (Salariat)
                   </h3>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                     {[
                       { label: 'Salaire net / mois', key: 'salaire' },
                       { label: '13e mois (annuel)', key: 'treizieme' },
@@ -1763,19 +1763,19 @@ function App() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-3">
-                    <span className="text-[9px] text-slate-500 uppercase font-bold">Revenu de référence bancaire Jess</span>
+                  <div className="mt-4 flex flex-wrap items-center gap-2 md:gap-3">
+                    <span className="text-[9px] text-slate-500 uppercase font-bold w-full sm:w-auto">Revenu de référence bancaire Jess</span>
                     <input
                       type="number"
                       value={globalSettings.incomeJess}
                       onChange={(e) => setGlobalSettings({...globalSettings, incomeJess: Number(e.target.value)})}
-                      className="w-36 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black text-sm focus:border-rose-400 outline-none"
+                      className="w-32 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black text-sm focus:border-rose-400 outline-none"
                     />
                     <button onClick={() => setGlobalSettings({...globalSettings, incomeJess: Math.round(jessCalculated.netSansBonus)})} className="text-[9px] font-black bg-rose-500/20 text-rose-400 px-3 py-2 rounded-xl hover:bg-rose-500 hover:text-white transition-all">
-                      ← Appliquer vue prudente
+                      ← Vue prudente
                     </button>
                     <button onClick={() => setGlobalSettings({...globalSettings, incomeJess: Math.round(jessCalculated.netAvecBonus)})} className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 px-3 py-2 rounded-xl hover:bg-emerald-500 hover:text-white transition-all">
-                      ← Appliquer vue optimiste
+                      ← Vue optimiste
                     </button>
                   </div>
                 </section>
@@ -1784,7 +1784,7 @@ function App() {
                   <h3 className="text-[10px] font-black text-sky-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <span className="w-8 h-px bg-slate-800" /> Rémunération Renaud (BNC Indépendant)
                   </h3>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase">Encaissé HT (Année)</label>
                       <input type="number" value={globalSettings.renaudBnc?.collectedHT ?? 0} onChange={(e) => setGlobalSettings({...globalSettings, renaudBnc: { ...globalSettings.renaudBnc, collectedHT: Number(e.target.value) }})} className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white font-black focus:border-sky-500 outline-none transition-colors" />
@@ -1798,9 +1798,9 @@ function App() {
                       <input type="number" value={globalSettings.renaudBnc?.forecastHT ?? 0} onChange={(e) => setGlobalSettings({...globalSettings, renaudBnc: { ...globalSettings.renaudBnc, forecastHT: Number(e.target.value) }})} className="w-full bg-slate-800 border border-slate-700 rounded-2xl p-4 text-white font-black focus:border-emerald-500 outline-none transition-colors" />
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-3">
-                    <span className="text-[9px] text-slate-500 uppercase font-bold">Revenu de référence bancaire Renaud</span>
-                    <input type="number" value={globalSettings.incomeRenaud} onChange={(e) => setGlobalSettings({...globalSettings, incomeRenaud: Number(e.target.value)})} className="w-36 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black text-sm focus:border-sky-500 outline-none" />
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <span className="text-[9px] text-slate-500 uppercase font-bold w-full sm:w-auto">Revenu de référence bancaire Renaud</span>
+                    <input type="number" value={globalSettings.incomeRenaud} onChange={(e) => setGlobalSettings({...globalSettings, incomeRenaud: Number(e.target.value)})} className="w-32 bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-black text-sm focus:border-sky-500 outline-none" />
                   </div>
                 </section>
 
@@ -1834,7 +1834,7 @@ function App() {
                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
                     <span className="w-8 h-px bg-slate-800" /> Budget Détaillé par défaut
                   </h3>
-                  <div className="grid grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
                     {Object.keys(globalSettings.budget).map(key => (
                       <div key={key} className="space-y-1.5">
                         <label className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">{formatBudgetLabel(key)}</label>
@@ -1852,7 +1852,7 @@ function App() {
                   </div>
                 </section>
 
-                <div className="p-6 bg-brand-primary/5 border border-brand-primary/20 rounded-[2rem] flex items-center justify-between">
+                <div className="p-4 md:p-6 bg-brand-primary/5 border border-brand-primary/20 rounded-[2rem] flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
                    <div className="flex items-center gap-4 text-brand-primary">
                      <AlertTriangle size={20} />
                      <p className="text-[10px] font-bold uppercase leading-tight max-w-md">

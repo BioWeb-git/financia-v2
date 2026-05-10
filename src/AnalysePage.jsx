@@ -644,7 +644,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       </div>
 
       {/* Barre simulations sauvegardées */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 flex-wrap">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 flex flex-col sm:flex-row sm:items-center gap-2">
         {/* Chips */}
         <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
           <button
@@ -680,16 +680,16 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
           ))}
         </div>
 
-        {/* Actions droite */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           {/* Comparer avec */}
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5">
             <ArrowLeftRight size={10} className="text-slate-400" />
-            <span className="text-[9px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer</span>
+            <span className="hidden sm:inline text-[9px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer</span>
             <select
               value={compareSimId ?? ''}
               onChange={e => setCompareSimId(e.target.value === '' ? null : Number(e.target.value))}
-              className="bg-transparent text-[10px] font-black text-slate-700 outline-none cursor-pointer max-w-[110px]"
+              className="bg-transparent text-[10px] font-black text-slate-700 outline-none cursor-pointer max-w-[90px]"
             >
               <option value="">Aucun</option>
               {savedSims.filter(s => s.id !== activeSimId).map(s => (
