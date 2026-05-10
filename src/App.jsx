@@ -853,17 +853,31 @@ function App() {
           </div>
           <div className="border-t border-slate-100" />
           {/* Ligne 2 : paramètres du prêt */}
-          <div className="grid grid-cols-5 divide-x divide-slate-100">
+          <div className="grid grid-cols-6 divide-x divide-slate-100">
             <div className="pr-4">
               <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
                 Revenus Cumulés
-                <HelpTip title="Revenus Mensuels Nets" content="Cumul des revenus nets mensuels de Renaud et Jessica, utilisés comme référence bancaire pour le calcul du taux d'endettement." position="bottom" />
+                <HelpTip title="Revenus Bancaires" content="Revenus configurés par défaut (salaires, primes et BNC lissés), utilisés comme référence bancaire pour le calcul du taux d'endettement." position="bottom" />
               </div>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Référence endettement</p>
               <p className="text-xl font-black text-slate-900 leading-tight">
                 {Math.round(currentResults.bankIncome).toLocaleString()}&nbsp;€
               </p>
               <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
                 Jess {Math.round(globalSettings.incomeJess).toLocaleString()} + Renaud {Math.round(globalSettings.incomeRenaud).toLocaleString()}
+              </p>
+            </div>
+            <div className="px-4">
+              <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                Revenus Cumulés
+                <HelpTip title="Revenus Mensuels Nets" content="Cumul des revenus nets mensuels configurés dans le scénario, utilisés pour le budget et le calcul du Reste à Vivre." position="bottom" />
+              </div>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Pour le budget &amp; RAV</p>
+              <p className="text-xl font-black text-slate-900 leading-tight">
+                {Math.round(currentScenario.income + currentScenario.income2).toLocaleString()}&nbsp;€
+              </p>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                Jess {Math.round(currentScenario.income).toLocaleString()} + Renaud {Math.round(currentScenario.income2).toLocaleString()}
               </p>
             </div>
             <div className="px-4">

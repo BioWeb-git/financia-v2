@@ -272,7 +272,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const initRate = currentScenario?.rate || 3.2;
   const initDuration = currentScenario?.duration || 25;
   const initInsurance = currentScenario?.insurance || 0.36;
-  const initIncome = (globalSettings?.incomeJess || 3200) + (globalSettings?.incomeRenaud || 1314);
+  const initIncome = currentScenario ? ((currentScenario.income || 0) + (currentScenario.income2 || 0)) : ((globalSettings?.incomeJess || 3200) + (globalSettings?.incomeRenaud || 1314));
   const initEpargne = globalSettings?.epargneTotale || 200000;
 
   const [price, setPrice] = useState(initPrice);
@@ -319,7 +319,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       fraisAgence: r?.agencyFees ?? (s.price * ((s.agencyRate || 0) / 100)),
       fraisAutres: (r?.bankFee ?? 1500) + (r?.brokerFee ?? 4100) + (r?.guaranteeFee ?? 0),
       rate: s.rate || 3.2, duration: s.duration || 25, insurance: s.insurance || 0.36,
-      income: (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0),
+      income: (currentScenario?.income || 0) + (currentScenario?.income2 || 0),
       depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux,
       epargneTotale: globalSettings?.epargneTotale || 200000,
     }, null);
