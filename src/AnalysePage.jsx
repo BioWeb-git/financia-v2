@@ -146,7 +146,8 @@ function computeScenario(p, apport) {
   const incomeForDebt = bankIncome > 0 ? bankIncome : income;
   const fraisTotal = price * (fraisNotaire / 100) + fraisAgence + fraisAutres;
   const totalAcquisition = price + fraisTotal;
-  const loanAmount = Math.max(0, totalAcquisition - apport);
+  // Garantie caution dynamique (~0.869% du prêt) — même logique que le dashboard
+  const loanAmount = Math.max(0, totalAcquisition - apport) * 1.00869;
 
   const cashGarde = epargneTotale - apport;
   const cashPlace = Math.max(0, cashGarde - matelas - travaux);
