@@ -442,11 +442,12 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     return computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, bankIncome);
   }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings, currentScenario, currentResults]);
 
+  const optiApportExact = Math.round(optiApport);
   const optiApportRounded = Math.round(optiApport / 1000) * 1000;
 
   const repartir = useCallback(() => {
-    const lo = optiApportRounded;
-    const hi = apports[3]; // D inchangé
+    const lo = optiApportExact; // A = valeur exacte, sans arrondi au millier
+    const hi = apports[3];      // D inchangé
     const range = hi - lo;
     if (range <= 0) {
       setApports([lo, lo, lo, Math.max(lo, hi)]);
@@ -458,7 +459,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       Math.round((lo + 2 * range / 3) / 1000) * 1000,
       hi,
     ]);
-  }, [optiApportRounded, apports]);
+  }, [optiApportExact, apports]);
 
   const [showCharts, setShowCharts] = useState(true);
 
@@ -886,7 +887,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.hex }} />
                 <span className="text-[10px] font-black uppercase text-slate-600">{c.label}</span>
-                {apports[i] === optiApportRounded && (
+                {apports[i] === optiApportExact && (
                   <span className="text-[8px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">Opti</span>
                 )}
               </div>
