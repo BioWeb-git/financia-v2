@@ -1076,7 +1076,7 @@ function App() {
                   <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Durée</p>
                   <div className="flex items-baseline gap-1 flex-wrap">
                     <p className="text-xl font-black text-slate-900">{currentScenario.duration} ans</p>
-                    {compareScenario && <DeltaBadge current={currentScenario.duration} compare={compareScenario.duration} lowerIsBetter={false} />}
+                    {compareScenario && <DeltaBadge current={currentScenario.duration} compare={compareScenario.duration} lowerIsBetter={false} unit="ans" />}
                   </div>
                 </div>
               </div>
