@@ -416,9 +416,9 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   }, [compareSimId, savedSims]);
 
   const repartir = useCallback(() => {
-    const min = computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income);
-    setApports(distributeApports(min, MAX_APPORT));
-  }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income]);
+    const fraisObligatoires = Math.ceil((price * (fraisNotaire / 100) + fraisAgence + fraisAutres) / 1000) * 1000;
+    setApports(distributeApports(fraisObligatoires, MAX_APPORT));
+  }, [price, fraisNotaire, fraisAgence, fraisAutres]);
 
   const [showCharts, setShowCharts] = useState(true);
 
