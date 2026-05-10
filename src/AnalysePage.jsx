@@ -316,7 +316,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const [travaux, setTravaux] = useState(30000);
   const [epargneTotale, setEpargneTotale] = useState(initEpargne);
 
-  const initMin = computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.5, 12000, 8000, initRate, initDuration, initInsurance, initIncome);
+  const initMin = Math.max(0, Math.round(currentResults?.minApportAt35 ?? computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.5, 12000, 8000, initRate, initDuration, initInsurance, initIncome)));
   const [apports, setApports] = useState(distributeApports(initMin, MAX_APPORT));
 
   const applyParams = (p, newApports) => {
@@ -417,11 +417,9 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   }, [compareSimId, savedSims]);
 
   const optiApport = useMemo(() => {
-    const bankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
-    const fraisObligatoires = Math.ceil((price * (fraisNotaire / 100) + fraisAgence + fraisAutres) / 1000) * 1000;
-    const hcsfMin = computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, bankIncome);
-    return Math.max(fraisObligatoires, hcsfMin);
-  }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings]);
+    // Use dashboard's exact minApportAt35 (same formula, same fees breakdown)
+    return Math.max(0, Math.round(currentResults?.minApportAt35 ?? 0));
+  }, [currentResults]);
 
   const repartir = useCallback(() => {
     const lo = optiApport;
