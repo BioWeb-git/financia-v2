@@ -263,8 +263,7 @@ const DEFAULT_PARAMS = {
 };
 
 function computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income) {
-  const fraisTotal = price * (fraisNotaire / 100) + fraisAgence + fraisAutres;
-  const totalAcquisition = price + fraisTotal;
+  const initialTotal = price + price * (fraisNotaire / 100) + fraisAgence + fraisAutres;
   const maxMonthly = income * 0.35;
   const r = rate / 100 / 12;
   const n = duration * 12;
@@ -272,7 +271,8 @@ function computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rat
     ? (r / (1 - Math.pow(1 + r, -n))) + (insurance / 100 / 12)
     : (1 / n) + (insurance / 100 / 12);
   const loanCapacity = maxMonthly / denom;
-  return Math.max(0, Math.ceil((totalAcquisition - loanCapacity) / 1000) * 1000);
+  // Correction garantie caution (~0.869% du prêt) — même logique que le dashboard
+  return Math.max(0, initialTotal - loanCapacity / 1.00869);
 }
 
 function distributeApports(min, max) {
@@ -316,7 +316,8 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const [travaux, setTravaux] = useState(30000);
   const [epargneTotale, setEpargneTotale] = useState(initEpargne);
 
-  const initMin = Math.max(0, Math.round(currentResults?.minApportAt35 ?? computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.5, 12000, 8000, initRate, initDuration, initInsurance, initIncome)));
+  const initBankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
+  const initMin = Math.ceil(computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.5, 12000, 8000, initRate, initDuration, initInsurance, initBankIncome) / 1000) * 1000;
   const [apports, setApports] = useState(distributeApports(initMin, MAX_APPORT));
 
   const applyParams = (p, newApports) => {
@@ -417,16 +418,18 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   }, [compareSimId, savedSims]);
 
   const optiApport = useMemo(() => {
-    // Use dashboard's exact minApportAt35 (same formula, same fees breakdown)
-    return Math.max(0, Math.round(currentResults?.minApportAt35 ?? 0));
-  }, [currentResults]);
+    const bankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
+    return computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, bankIncome);
+  }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings]);
+
+  const optiApportRounded = Math.ceil(optiApport / 1000) * 1000;
 
   const repartir = useCallback(() => {
-    const lo = optiApport;
+    const lo = optiApportRounded;
     const hi = apports[3]; // D inchangé
     const range = hi - lo;
     if (range <= 0) {
-      setApports([lo, lo, lo, hi]);
+      setApports([lo, lo, lo, Math.max(lo, hi)]);
       return;
     }
     setApports([
@@ -435,7 +438,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       Math.round((lo + 2 * range / 3) / 1000) * 1000,
       hi,
     ]);
-  }, [optiApport, apports]);
+  }, [optiApportRounded, apports]);
 
   const [showCharts, setShowCharts] = useState(true);
 
@@ -863,7 +866,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.hex }} />
                 <span className="text-[10px] font-black uppercase text-slate-600">{c.label}</span>
-                {apports[i] === optiApport && (
+                {apports[i] === optiApportRounded && (
                   <span className="text-[8px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">Opti</span>
                 )}
               </div>
