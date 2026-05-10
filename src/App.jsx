@@ -219,7 +219,13 @@ function SidebarFeeControl({
   guaranteeOverride = false
 }) {
   const [mode, setMode] = useState(isGuarantee && guaranteeOverride ? 'eur' : (type === 'percent' ? 'pct' : 'eur'));
-  
+  const [localAmount, setLocalAmount] = useState(() => Math.round(amount || 0));
+
+  // Sync localAmount when the computed prop changes (e.g. after a rate or price edit)
+  useEffect(() => {
+    setLocalAmount(Math.round(amount || 0));
+  }, [amount]);
+
   useEffect(() => {
     if (isGuarantee) {
       setMode(guaranteeOverride ? 'eur' : 'pct');
@@ -228,10 +234,17 @@ function SidebarFeeControl({
 
   const handleModeToggle = () => {
     const newMode = mode === 'pct' ? 'eur' : 'pct';
-    setMode(newMode);
-    if (isGuarantee && newMode === 'pct') {
-      onRateChange(rate);
+    if (newMode === 'eur') {
+      // Capture the freshest computed amount at toggle time
+      setLocalAmount(Math.round(amount || 0));
     }
+    setMode(newMode);
+    // Ne pas appeler onRateChange ici — ça effacerait guaranteeFee sans que l'utilisateur ait édité quoi que ce soit
+  };
+
+  const handleAmountChange = (v) => {
+    setLocalAmount(v);
+    onAmountChange(v);
   };
 
   const step = 1 / Math.pow(10, precision);
@@ -240,44 +253,44 @@ function SidebarFeeControl({
     <div className="group space-y-1.5 py-1">
       <div className="flex justify-between items-center h-7">
         <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight group-hover:text-slate-400 transition-colors">{label}</span>
-        
+
         <div className="flex items-center gap-1.5">
           {/* Toggle button */}
           {type === 'percent' && (
-            <button 
+            <button
               onClick={handleModeToggle}
               className={cn(
                 "w-6 h-6 flex items-center justify-center text-[9px] font-black rounded-lg transition-all border shadow-sm",
-                mode === 'pct' 
-                  ? "bg-slate-700 text-white border-slate-600 shadow-slate-900/20" 
+                mode === 'pct'
+                  ? "bg-slate-700 text-white border-slate-600 shadow-slate-900/20"
                   : "bg-slate-800 text-slate-500 border-slate-700 hover:border-slate-600"
               )}
             >
               {mode === 'pct' ? '%' : '€'}
             </button>
           )}
-          
+
           <div className="flex items-center bg-slate-900/50 rounded-lg border border-slate-700/50 p-0.5 shadow-inner">
-            <button 
-              onClick={() => mode === 'pct' ? onRateChange(Number(Math.max(0, rate - step).toFixed(precision))) : onAmountChange(Math.max(0, Math.round(amount) - 100))}
+            <button
+              onClick={() => mode === 'pct' ? onRateChange(Number(Math.max(0, rate - step).toFixed(precision))) : handleAmountChange(Math.max(0, localAmount - 100))}
               className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 rounded-md transition-all"
             >
               <Minus size={10} />
             </button>
-            
-            <input 
-              type="number" 
+
+            <input
+              type="number"
               step={mode === 'pct' ? step : 100}
-              value={mode === 'pct' ? rate : Math.round(amount)} 
-              onChange={(e) => mode === 'pct' ? onRateChange(Number(e.target.value)) : onAmountChange(Number(e.target.value))} 
+              value={mode === 'pct' ? rate : localAmount}
+              onChange={(e) => mode === 'pct' ? onRateChange(Number(e.target.value)) : handleAmountChange(Number(e.target.value))}
               className={cn(
                 "bg-transparent text-white text-[11px] font-black text-center outline-none tabular-nums",
                 mode === 'pct' ? (isGuarantee ? "w-14" : "w-10") : "w-16"
               )}
             />
-            
-            <button 
-              onClick={() => mode === 'pct' ? onRateChange(Number((rate + step).toFixed(precision))) : onAmountChange(Math.round(amount) + 100)}
+
+            <button
+              onClick={() => mode === 'pct' ? onRateChange(Number((rate + step).toFixed(precision))) : handleAmountChange(localAmount + 100)}
               className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 rounded-md transition-all"
             >
               <Plus size={10} />
@@ -576,7 +589,10 @@ function App() {
 
       
       // RAV basé sur le revenu de PROJECTION
-      const rav = projectedIncome - payment.total - totalBudget - (typeof s.budget.epargne === 'number' ? s.budget.epargne : s.budget.epargne.amount);
+      const epargne = typeof s.budget.epargne === 'number' ? s.budget.epargne : s.budget.epargne.amount;
+      const ravBrut = projectedIncome - payment.total;
+      const ravCharges = ravBrut - totalBudget;
+      const rav = ravCharges - epargne;
       
       const cost = calculateTotalCost(loanAmount, s.rate, s.duration, s.insurance);
       const amortization = generateAmortizationTable(loanAmount, s.rate, s.duration, s.insurance);
@@ -620,7 +636,9 @@ function App() {
         loanAmount, 
         payment, 
         debtRatio, 
-        rav, 
+        rav,
+        ravBrut,
+        ravCharges,
         cost, 
         inflationData, 
         amortization, 
@@ -1069,6 +1087,18 @@ function App() {
 
               {/* 5 autres KPIs — grille 2 colonnes */}
               <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <div className="glass-card p-5 rounded-[2rem] col-span-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Taux d'Endettement</p>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-baseline gap-1 flex-wrap">
+                      <p className={cn("text-2xl font-black", currentResults.debtRatio > 35 ? "text-rose-500" : "text-slate-900")}>{currentResults.debtRatio.toFixed(2)} %</p>
+                      <DeltaBadge current={currentResults.debtRatio} compare={compareResults?.debtRatio} lowerIsBetter={true} isPercent={true} />
+                    </div>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={cn("h-full transition-all duration-500", currentResults.debtRatio > 35 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${Math.min(100, currentResults.debtRatio)}%` }} />
+                    </div>
+                  </div>
+                </div>
                 <div className="glass-card p-5 rounded-[2rem]">
                   <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Montant Emprunté</p>
                   <div className="flex items-baseline gap-1 flex-wrap">
@@ -1097,20 +1127,26 @@ function App() {
                 </div>
                 <div className="glass-card p-5 rounded-[2rem]">
                   <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Reste à Vivre (RAV)</p>
-                  <div className="flex items-baseline gap-1 flex-wrap">
-                    <p className={cn("text-2xl font-black", currentResults.rav > 500 ? "text-emerald-500" : "text-rose-500")}>{Math.round(currentResults.rav).toLocaleString()} €</p>
-                    <DeltaBadge current={currentResults.rav} compare={compareResults?.rav} lowerIsBetter={false} />
-                  </div>
-                </div>
-                <div className="glass-card p-5 rounded-[2rem] col-span-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Taux d'Endettement</p>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-baseline gap-1 flex-wrap">
-                      <p className={cn("text-2xl font-black", currentResults.debtRatio > 35 ? "text-rose-500" : "text-slate-900")}>{currentResults.debtRatio.toFixed(2)} %</p>
-                      <DeltaBadge current={currentResults.debtRatio} compare={compareResults?.debtRatio} lowerIsBetter={true} isPercent={true} />
+                  <div className="flex gap-3 items-start">
+                    <div className="flex-1">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Brut</p>
+                      <p className={cn("text-lg font-black", currentResults.ravBrut > 0 ? "text-slate-900" : "text-rose-500")}>{Math.round(currentResults.ravBrut).toLocaleString()} €</p>
+                      <p className="text-[8px] text-slate-400 mt-0.5">Revenus − mensualité</p>
                     </div>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={cn("h-full transition-all duration-500", currentResults.debtRatio > 35 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${Math.min(100, currentResults.debtRatio)}%` }} />
+                    <div className="w-px self-stretch bg-slate-100" />
+                    <div className="flex-1">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Budget intégré</p>
+                      <p className={cn("text-lg font-black", currentResults.ravCharges > 0 ? "text-slate-700" : "text-rose-500")}>{Math.round(currentResults.ravCharges).toLocaleString()} €</p>
+                      <p className="text-[8px] text-slate-400 mt-0.5">− charges</p>
+                    </div>
+                    <div className="w-px self-stretch bg-slate-100" />
+                    <div className="flex-1">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">+ Épargne</p>
+                      <div className="flex items-baseline gap-1 flex-wrap">
+                        <p className={cn("text-lg font-black", currentResults.rav > 500 ? "text-emerald-500" : "text-rose-500")}>{Math.round(currentResults.rav).toLocaleString()} €</p>
+                        <DeltaBadge current={currentResults.rav} compare={compareResults?.rav} lowerIsBetter={false} />
+                      </div>
+                      <p className="text-[8px] text-slate-400 mt-0.5">− épargne</p>
                     </div>
                   </div>
                 </div>
