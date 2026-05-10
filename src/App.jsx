@@ -740,23 +740,25 @@ function App() {
       ) : (
         <>
           <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
-        <header className="flex flex-wrap gap-2 justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Renaud & Jessica <span className="text-slate-400 font-medium">| Dashboard</span></h2>
+        <header className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+              Renaud & Jessica <span className="text-slate-400 font-medium">| Dashboard</span>
+            </h2>
             {currentScenario.adUrl && (
-              <a href={currentScenario.adUrl} target="_blank" rel="noopener noreferrer" className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 hover:bg-slate-200 transition-all">
+              <a href={currentScenario.adUrl} target="_blank" rel="noopener noreferrer" className="inline-flex mt-1 bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase items-center gap-2 hover:bg-slate-200 transition-all">
                 Voir l'annonce <ExternalLink size={12} />
               </a>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
-              <ArrowLeftRight size={12} className="text-slate-400 shrink-0" />
-              <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer avec</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-100 rounded-xl px-2.5 py-1.5 shadow-sm">
+              <ArrowLeftRight size={11} className="text-slate-400 shrink-0" />
+              <span className="hidden sm:inline text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Comparer</span>
               <select
                 value={compareWithId ?? ''}
                 onChange={e => setCompareWithId(e.target.value === '' ? null : Number(e.target.value))}
-                className="bg-transparent text-[11px] font-black text-slate-700 outline-none cursor-pointer max-w-[140px]"
+                className="bg-transparent text-[11px] font-black text-slate-700 outline-none cursor-pointer max-w-[120px]"
               >
                 <option value="">Aucun</option>
                 {scenarios.filter(s => s.id !== currentScenarioId).map(s => (
@@ -764,13 +766,13 @@ function App() {
                 ))}
               </select>
               {compareWithId !== null && (
-                <button onClick={() => setCompareWithId(null)} className="text-slate-300 hover:text-slate-500 transition-colors ml-1">
-                  <X size={12} />
+                <button onClick={() => setCompareWithId(null)} className="text-slate-300 hover:text-slate-500 transition-colors">
+                  <X size={11} />
                 </button>
               )}
             </div>
-            <button onClick={() => openModal('create')} className="bg-brand-primary text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all flex items-center gap-2">
-              <Plus size={14} /> Nouveau Scénario
+            <button onClick={() => openModal('create')} className="bg-brand-primary text-white px-3 md:px-4 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg hover:scale-105 transition-all flex items-center gap-1.5">
+              <Plus size={14} /> <span className="hidden sm:inline">Nouveau </span>Scénario
             </button>
           </div>
         </header>
