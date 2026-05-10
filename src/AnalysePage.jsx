@@ -231,15 +231,16 @@ function computeScenario(p, apport) {
 
   // Alertes
   const alerts = [];
-  if (debtRatio1 > 35) alerts.push({ level: 'error', msg: 'Taux d\'endettement > 35 % (HCSF)' });
-  else if (debtRatio1 > 33) alerts.push({ level: 'warn', msg: 'Marge faible vs HCSF (33 %)' });
+  const dr = debtRatio1.toFixed(1);
+  if (debtRatio1 > 35) alerts.push({ level: 'error', msg: `Endettement ${dr} % — dépasse la limite HCSF (35 %)` });
+  else if (debtRatio1 > 33) alerts.push({ level: 'warn', msg: `Endettement ${dr} % — marge faible vs HCSF (35 %)` });
   if (apport < totalAcquisition * 0.10) alerts.push({ level: 'warn', msg: 'Apport < 10 % de l\'opération' });
   if (cashGarde < matelas + travaux) alerts.push({ level: 'warn', msg: 'Coussin de sécurité insuffisant' });
   if (raEffectif > crAvantRA) alerts.push({ level: 'error', msg: 'RA > capital restant à cette date' });
   if (rendement > 7) alerts.push({ level: 'warn', msg: 'Rendement > 7 % : hypothèse optimiste' });
 
   return {
-    apport, fraisTotal, totalAcquisition, loanAmount,
+    apport, fraisTotal, totalAcquisition, loanAmount, debtRatio1, debtRatio2,
     cashGarde, cashPlace,
     pmt1, debtRatio1, rav1, epargne1,
     tRA, crAvantRA, raEffectif,
@@ -896,7 +897,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
                 step={1000}
                 onChange={(v) => setApports((prev) => prev.map((a, j) => (j === i ? v : a)))}
                 format={(v) => `${fmt(v)} €`}
-                sub={`Emprunté : ${fmt(Math.max(0, totalAcquisition - apports[i]))} €  ·  Opti : ${fmt(optiApport)} €`}
+                sub={`Emprunté : ${fmt(Math.max(0, totalAcquisition - apports[i]))} €  ·  Endettement : ${results[i].debtRatio1.toFixed(1)} %  ·  Opti : ${fmt(optiApport)} €`}
               />
               {results[i].alerts.length > 0 && (
                 <div className="space-y-1">
