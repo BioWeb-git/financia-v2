@@ -415,10 +415,16 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     return savedSims.find(s => s.id === compareSimId)?.params ?? null;
   }, [compareSimId, savedSims]);
 
-  const repartir = useCallback(() => {
+  const optiApport = useMemo(() => {
+    const bankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
     const fraisObligatoires = Math.ceil((price * (fraisNotaire / 100) + fraisAgence + fraisAutres) / 1000) * 1000;
-    setApports(distributeApports(fraisObligatoires, MAX_APPORT));
-  }, [price, fraisNotaire, fraisAgence, fraisAutres]);
+    const hcsfMin = computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, bankIncome);
+    return Math.max(fraisObligatoires, hcsfMin);
+  }, [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, globalSettings]);
+
+  const repartir = useCallback(() => {
+    setApports(distributeApports(optiApport, MAX_APPORT));
+  }, [optiApport]);
 
   const [showCharts, setShowCharts] = useState(true);
 
@@ -844,6 +850,9 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.hex }} />
                 <span className="text-[10px] font-black uppercase text-slate-600">{c.label}</span>
+                {apports[i] === optiApport && (
+                  <span className="text-[8px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">Opti</span>
+                )}
               </div>
               <Slider
                 label="Apport"
@@ -853,7 +862,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
                 step={1000}
                 onChange={(v) => setApports((prev) => prev.map((a, j) => (j === i ? v : a)))}
                 format={(v) => `${fmt(v)} €`}
-                sub={`Emprunté : ${fmt(Math.max(0, totalAcquisition - apports[i]))} €`}
+                sub={`Emprunté : ${fmt(Math.max(0, totalAcquisition - apports[i]))} €  ·  Opti : ${fmt(optiApport)} €`}
               />
               {results[i].alerts.length > 0 && (
                 <div className="space-y-1">
