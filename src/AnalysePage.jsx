@@ -275,13 +275,15 @@ function computeMinApportHCSF(price, fraisNotaire, fraisAgence, fraisAutres, rat
 }
 
 function distributeApports(min, max) {
-  if (min >= max) return [min, min, max, max];
-  const step = (max - min) / 3;
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  if (lo >= hi) return [lo, lo, lo, lo];
+  const step = (hi - lo) / 3;
   return [
-    Math.round(min / 1000) * 1000,
-    Math.round((min + step) / 1000) * 1000,
-    Math.round((min + 2 * step) / 1000) * 1000,
-    Math.round(max / 1000) * 1000,
+    Math.round(lo / 1000) * 1000,
+    Math.round((lo + step) / 1000) * 1000,
+    Math.round((lo + 2 * step) / 1000) * 1000,
+    Math.round(hi / 1000) * 1000,
   ];
 }
 
