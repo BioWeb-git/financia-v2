@@ -302,7 +302,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     currentResults?.agencyFees ?? (initPrice * ((currentScenario?.agencyRate || 0) / 100))
   );
   const [fraisAutres, setFraisAutres] = useState(
-    (currentResults?.bankFee ?? 1500) + (currentResults?.brokerFee ?? 4100) + (currentResults?.guaranteeFee ?? 0)
+    (currentResults?.bankFee ?? 1500) + (currentResults?.brokerFee ?? 4100)
   );
   const [rate, setRate] = useState(initRate);
   const [duration, setDuration] = useState(initDuration);
@@ -322,7 +322,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
 
   const initBankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
   const initFraisAgence = currentResults?.agencyFees ?? (initPrice * ((currentScenario?.agencyRate || 0) / 100));
-  const initFraisAutres = (currentResults?.bankFee ?? 1500) + (currentResults?.brokerFee ?? 4100) + (currentResults?.guaranteeFee ?? 0);
+  const initFraisAutres = (currentResults?.bankFee ?? 1500) + (currentResults?.brokerFee ?? 4100);
   const initMin = Math.ceil(computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.28, initFraisAgence, initFraisAutres, initRate, initDuration, initInsurance, initBankIncome) / 1000) * 1000;
   const [apports, setApports] = useState(distributeApports(initMin, MAX_APPORT));
 
@@ -345,7 +345,7 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       price: s.price || 430000,
       fraisNotaire: s.notaryRate || 7.28,
       fraisAgence: r?.agencyFees ?? (s.price * ((s.agencyRate || 0) / 100)),
-      fraisAutres: (r?.bankFee ?? 1500) + (r?.brokerFee ?? 4100) + (r?.guaranteeFee ?? 0),
+      fraisAutres: (r?.bankFee ?? 1500) + (r?.brokerFee ?? 4100),
       rate: s.rate || 3.2, duration: s.duration || 25, insurance: s.insurance || 0.36,
       income: (currentScenario?.income || 0) + (currentScenario?.income2 || 0),
       depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux,
