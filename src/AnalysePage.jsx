@@ -297,9 +297,13 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const initEpargne = globalSettings?.epargneTotale || 200000;
 
   const [price, setPrice] = useState(initPrice);
-  const [fraisNotaire, setFraisNotaire] = useState(currentScenario?.notaryRate || 7.5);
-  const [fraisAgence, setFraisAgence] = useState(12000);
-  const [fraisAutres, setFraisAutres] = useState(8000);
+  const [fraisNotaire, setFraisNotaire] = useState(currentScenario?.notaryRate || 7.28);
+  const [fraisAgence, setFraisAgence] = useState(
+    currentResults?.agencyFees ?? (initPrice * ((currentScenario?.agencyRate || 0) / 100))
+  );
+  const [fraisAutres, setFraisAutres] = useState(
+    (currentResults?.bankFee ?? 1500) + (currentResults?.brokerFee ?? 4100) + (currentResults?.guaranteeFee ?? 0)
+  );
   const [rate, setRate] = useState(initRate);
   const [duration, setDuration] = useState(initDuration);
   const [insurance, setInsurance] = useState(initInsurance);
@@ -317,7 +321,9 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const [epargneTotale, setEpargneTotale] = useState(initEpargne);
 
   const initBankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
-  const initMin = Math.ceil(computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.5, 12000, 8000, initRate, initDuration, initInsurance, initBankIncome) / 1000) * 1000;
+  const initFraisAgence = currentResults?.agencyFees ?? (initPrice * ((currentScenario?.agencyRate || 0) / 100));
+  const initFraisAutres = (currentResults?.bankFee ?? 1500) + (currentResults?.brokerFee ?? 4100) + (currentResults?.guaranteeFee ?? 0);
+  const initMin = Math.ceil(computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.28, initFraisAgence, initFraisAutres, initRate, initDuration, initInsurance, initBankIncome) / 1000) * 1000;
   const [apports, setApports] = useState(distributeApports(initMin, MAX_APPORT));
 
   const applyParams = (p, newApports) => {
