@@ -913,7 +913,7 @@ function App() {
 
       <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden">
         {/* Page : Biens */}
-        <div className={cn("flex-1 h-full overflow-hidden", activePage === 'biens' ? "block" : "hidden")}>
+        <div className={cn("flex-1 h-full overflow-hidden flex flex-col", activePage === 'biens' ? "flex" : "hidden")}>
           <BienPage />
         </div>
 

@@ -1,16 +1,38 @@
-# React + Vite
+# FinancIA - Dashboard v2
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interface moderne de gestion de patrimoine, d'analyse financière comparative et de suivi des annonces immobilières.
 
-Currently, two official plugins are available:
+## 🚀 Démarrage du projet en local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Pour faire fonctionner l'application complète avec la persistance des données (sauvegarde locale dans les fichiers JSON), deux processus doivent être en cours d'exécution : le serveur frontend (Vite) et le serveur backend de persistance (Node.js).
 
-## React Compiler
+### Option 1 : Commande combinée (Recommandée)
+Lance simultanément le backend et le frontend dans un seul terminal :
+```bash
+npm run dev:full
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+### Option 2 : Commandes séparées
+Si vous préférez exécuter les services dans deux terminaux distincts :
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. **Démarrer le backend Node.js** (sur le port 3001) :
+   ```bash
+   node server.cjs
+   ```
+   *(ou via la commande de raccourci : `npm run server`)*
+
+2. **Démarrer le frontend React/Vite** (dans un second terminal) :
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## 📂 Architecture des Données
+
+Les données dynamiques de l'application sont stockées et synchronisées dans le dossier `data/` :
+- `data/biens.json` : Suivi et organisation des annonces de recherche de biens.
+- `data/analyse.json` : Scénarios et simulations d'analyses comparatives.
+- `data/scenarios.json` : Configurations globales de financement.

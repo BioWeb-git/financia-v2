@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, MapPin, Euro, Maximize2, Clipboard,
   Trash2, ExternalLink, CheckCircle2, Circle, Check, Star,
-  Columns, X, Save, AlertCircle, Loader2, Map as MapIcon, ChevronLeft, ChevronRight,
+  Columns, X, Save, AlertCircle, Loader2, Map as MapIcon, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +11,7 @@ const STANDARD_COLUMNS = [
   { id: 'contact', label: '1er Contact', width: 'w-10', align: 'center' },
   { id: 'visitePrevue', label: 'Visite prévue', width: 'w-10', align: 'center' },
   { id: 'visite', label: 'Visité', width: 'w-10', align: 'center' },
+  { id: 'abandonne', label: 'Abandonné', width: 'w-10', align: 'center' },
   { id: 'note', label: 'Note', width: 'w-20', align: 'center' },
   { id: 'nom', label: 'Bien / Nom', minWidth: 'min-w-[150px]' },
   { id: 'agence', label: 'Agence', minWidth: 'min-w-[100px]' },
@@ -57,6 +58,7 @@ const BienPage = () => {
   const [parsedData, setParsedData] = useState(null);
   const [addMode, setAddMode] = useState(null); // 'ai' or 'manual'
   const [newColumnName, setNewColumnName] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   const saveAll = (updatedBiens, updatedCols, updatedOrder) => {
     const data = {
@@ -98,6 +100,60 @@ const BienPage = () => {
       });
   }, []);
 
+  const sortedBiens = useMemo(() => {
+    let sortableItems = [...biens];
+    if (sortConfig.key !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue, bValue;
+        
+        if (sortConfig.key === 'prixM2') {
+          aValue = a.surface > 0 ? Math.round(a.prix / a.surface) : 0;
+          bValue = b.surface > 0 ? Math.round(b.prix / b.surface) : 0;
+        } else if (sortConfig.key.startsWith('custom_')) {
+          aValue = a.customValues?.[sortConfig.key] || '';
+          bValue = b.customValues?.[sortConfig.key] || '';
+        } else {
+          aValue = a[sortConfig.key];
+          bValue = b[sortConfig.key];
+        }
+
+        if (typeof aValue === 'boolean') aValue = aValue ? 1 : 0;
+        if (typeof bValue === 'boolean') bValue = bValue ? 1 : 0;
+
+        if (aValue === undefined || aValue === null) aValue = '';
+        if (bValue === undefined || bValue === null) bValue = '';
+
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          const aNum = parseFloat(aValue);
+          const bNum = parseFloat(bValue);
+          if (!isNaN(aNum) && !isNaN(bNum) && aValue.trim() !== '' && bValue.trim() !== '') {
+            return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+          }
+          return sortConfig.direction === 'asc' 
+            ? aValue.localeCompare(bValue) 
+            : bValue.localeCompare(aValue);
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [biens, sortConfig]);
+
+  const requestSort = (key) => {
+    if (key === 'liens') return;
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      setSortConfig({ key: null, direction: 'asc' });
+      return;
+    }
+    setSortConfig({ key, direction });
+  };
+
   // Heuristic Parser (Fallback)
   const parseAdTextHeuristic = (text) => {
     const data = {
@@ -107,6 +163,7 @@ const BienPage = () => {
       surface: 0,
       dpe: "-",
       visite: false,
+      abandonne: false,
       url: "",
       maps: "",
       notes: "",
@@ -205,6 +262,7 @@ const BienPage = () => {
         ...aiData,
         id: Date.now(),
         visite: false,
+        abandonne: false,
         url: "",
         maps: "",
         customValues: {}
@@ -243,6 +301,7 @@ const BienPage = () => {
       travaux: "Non",
       annee: "",
       visite: false,
+      abandonne: false,
       contact: false,
       visitePrevue: false,
       url: "",
@@ -336,7 +395,7 @@ const BienPage = () => {
   }
 
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto pb-20 md:pb-8">
+    <div className="flex-1 min-h-0 min-w-0 p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto pb-20 md:pb-8">
       <header className="flex flex-wrap gap-3 justify-between items-start">
         <div>
           <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Recherche de Biens</h2>
@@ -391,7 +450,24 @@ const BienPage = () => {
                         {index > 0 && (
                           <button onClick={() => moveColumn(colId, -1)} className="opacity-0 group-hover/col:opacity-100 hover:text-brand-primary transition-opacity bg-slate-100 rounded p-0.5"><ChevronLeft size={8} /></button>
                         )}
-                        <span>{label}</span>
+                        <button 
+                          onClick={() => requestSort(colId)}
+                          disabled={colId === 'liens'}
+                          className={cn(
+                            "flex items-center gap-0.5 transition-colors font-black",
+                            colId !== 'liens' ? 'hover:text-slate-700 cursor-pointer' : '',
+                            sortConfig.key === colId ? 'text-brand-primary font-extrabold' : ''
+                          )}
+                        >
+                          <span>{label}</span>
+                          {colId !== 'liens' && (
+                            <span className="text-[10px] inline-flex items-center">
+                              {sortConfig.key === colId ? (
+                                sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-brand-primary" /> : <ChevronDown size={12} className="text-brand-primary" />
+                              ) : null}
+                            </span>
+                          )}
+                        </button>
                         {index < columnOrder.length - 1 && (
                           <button onClick={() => moveColumn(colId, 1)} className="opacity-0 group-hover/col:opacity-100 hover:text-brand-primary transition-opacity bg-slate-100 rounded p-0.5"><ChevronRight size={8} /></button>
                         )}
@@ -419,7 +495,7 @@ const BienPage = () => {
                     </div>
                   </td>
                 </tr>
-              ) : biens.map(bien => (
+              ) : sortedBiens.map(bien => (
                 <tr key={bien.id} className="hover:bg-slate-50/50 transition-colors group">
                   {columnOrder.map(colId => {
                     if (colId === 'contact') return (
@@ -455,6 +531,17 @@ const BienPage = () => {
                       </td>
                     );
 
+                    if (colId === 'abandonne') return (
+                      <td key="abandonne" className="px-2 py-1.5 text-center">
+                        <button 
+                          onClick={() => updateBien(bien.id, 'abandonne', !bien.abandonne)}
+                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bien.abandonne ? 'bg-rose-500 text-white border border-rose-500 shadow-sm scale-110' : 'bg-slate-50 border border-slate-300 text-transparent hover:border-rose-400 hover:bg-rose-50'}`}
+                        >
+                          <X size={12} className={bien.abandonne ? 'opacity-100' : 'opacity-0'} />
+                        </button>
+                      </td>
+                    );
+
                     if (colId === 'note') return (
                       <td key="note" className="px-2 py-1.5 text-center">
                         <div className="flex items-center justify-center gap-0.5">
@@ -481,7 +568,6 @@ const BienPage = () => {
                     if (colId === 'nom') return (
                       <td key="nom" className="px-2 py-1.5">
                         <input 
-                          className="bg-transparent border border-transparent hover:border-slate-300 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-800 text-xs focus:ring-0 w-full transition-colors"
                           className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-800 text-xs focus:ring-0 w-full transition-colors"
                           value={bien.nom}
                           onChange={(e) => updateBien(bien.id, 'nom', e.target.value)}
