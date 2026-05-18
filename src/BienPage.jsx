@@ -451,7 +451,7 @@ const BienPage = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y-0">
               {list.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-20 text-center text-slate-400">
@@ -468,10 +468,19 @@ const BienPage = () => {
               ) : list.map(bien => {
                 const isExpanded = expandedBiens[bien.id] ?? false;
                 const prixM2 = bien.surface > 0 ? Math.round(bien.prix / bien.surface) : 0;
+                const borderClass = isArchive 
+                  ? 'border-b-2 border-slate-200/80' 
+                  : 'border-b-2 border-slate-300';
                 
                 return (
                   <React.Fragment key={bien.id}>
-                    <tr className={`transition-colors duration-200 border-l-4 ${bien.abandonne ? 'border-l-rose-500 bg-rose-50/10 hover:bg-rose-50/20' : isExpanded ? 'border-l-brand-primary bg-indigo-50/5 hover:bg-indigo-50/10' : 'border-l-transparent hover:bg-slate-50/50'}`}>
+                    <tr className={`transition-colors duration-200 border-l-4 ${
+                      bien.abandonne 
+                        ? 'border-l-rose-500 bg-rose-50/10 hover:bg-rose-50/20' 
+                        : isExpanded 
+                          ? 'border-l-brand-primary bg-indigo-50/5 hover:bg-indigo-50/10' 
+                          : 'border-l-transparent hover:bg-slate-50/50'
+                    } ${isExpanded ? 'border-b border-slate-100/50' : borderClass}`}>
                       <td className="px-3 py-3.5 text-center align-middle">
                         <div className="flex items-center justify-center gap-0.5">
                           {[1, 2, 3, 4, 5].map(star => (
@@ -679,7 +688,7 @@ const BienPage = () => {
 
                     <AnimatePresence initial={false}>
                       {isExpanded && (
-                        <tr>
+                        <tr className={borderClass}>
                           <td colSpan={7} className="px-4 py-0 border-t-0 align-top bg-slate-50/20">
                             <motion.div 
                               initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
