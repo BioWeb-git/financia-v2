@@ -472,6 +472,16 @@ const BienPage = () => {
                   ? 'border-b-2 border-slate-200/80' 
                   : 'border-b-2 border-slate-300';
                 
+                const specs = [];
+                if (bien.chambres) specs.push(`${bien.chambres} ch.`);
+                if (bien.terrain) specs.push(`Terrain ${bien.terrain}m²`);
+                if (bien.dpe && bien.dpe !== '-') specs.push(`DPE ${bien.dpe}`);
+                if (bien.travaux && bien.travaux !== 'Non') specs.push(`Travaux ${bien.travaux}`);
+                if (bien.stationnement) specs.push(bien.stationnement);
+                if (bien.annee) specs.push(bien.annee);
+                if (bien.agence) specs.push(bien.agence);
+                const specsStr = specs.join(' | ');
+                
                 return (
                   <React.Fragment key={bien.id}>
                     <tr className={`transition-colors duration-200 border-l-4 ${
@@ -562,6 +572,11 @@ const BienPage = () => {
                             onChange={(e) => updateBien(bien.id, 'nom', e.target.value)}
                             placeholder="Nom du bien..."
                           />
+                          {specsStr && (
+                            <div className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider pl-2 select-none leading-none pb-0.5">
+                              {specsStr}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 pl-2">
                             {bien.url ? (
                               <div className="flex items-center bg-sky-50 border border-sky-100 rounded-lg pr-1">
