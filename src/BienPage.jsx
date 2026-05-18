@@ -1,31 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Search, MapPin, Euro, Maximize2, Clipboard,
-  Trash2, ExternalLink, CheckCircle2, Circle, Check, Star,
-  Columns, X, Save, AlertCircle, Loader2, Map as MapIcon, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
-
+  Plus, Search, MapPin, Euro, Clipboard, Trash2, ExternalLink, 
+  CheckCircle2, Check, Star, Columns, X, AlertCircle, Loader2, 
+  Map as MapIcon, ChevronUp, ChevronDown, Calendar, Phone, Edit2, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const STANDARD_COLUMNS = [
-  { id: 'contact', label: '1er Contact', width: 'w-10', align: 'center' },
-  { id: 'visitePrevue', label: 'Visite prévue', width: 'w-10', align: 'center' },
-  { id: 'visite', label: 'Visité', width: 'w-10', align: 'center' },
-  { id: 'abandonne', label: 'Abandonné', width: 'w-10', align: 'center' },
-  { id: 'note', label: 'Note', width: 'w-20', align: 'center' },
-  { id: 'nom', label: 'Bien / Nom', minWidth: 'min-w-[150px]' },
-  { id: 'agence', label: 'Agence', minWidth: 'min-w-[100px]' },
-  { id: 'ville', label: 'Ville', minWidth: 'min-w-[100px]' },
-  { id: 'prix', label: 'Prix', align: 'right', width: 'w-28' },
-  { id: 'surface', label: 'Surface', align: 'right', width: 'w-20' },
-  { id: 'chambres', label: 'Ch.', align: 'center', width: 'w-10' },
-  { id: 'terrain', label: 'Terr.', align: 'center', width: 'w-14' },
-  { id: 'dpe', label: 'DPE', align: 'center', width: 'w-10' },
-  { id: 'stationnement', label: 'Stat.', minWidth: 'min-w-[80px]' },
-  { id: 'travaux', label: 'Trav.', align: 'center', width: 'w-16' },
-  { id: 'prixM2', label: '€/m²', align: 'right', width: 'w-16' },
-  { id: 'liens', label: 'Liens', align: 'center', width: 'w-24' },
-];
 
 const BIENS_STORAGE_KEY = 'financia_biens_state';
 
@@ -39,16 +18,12 @@ const loadBiensFromStorage = () => {
 
 const BienPage = () => {
   const initData = loadBiensFromStorage();
-  const standardIds = STANDARD_COLUMNS.map(c => c.id);
-  const initCustomCols = initData?.customColumns || [];
-  const savedOrder = initData?.columnOrder || [];
-  const customIds = initCustomCols.map(c => c.id);
-  const missingStandardIds = standardIds.filter(id => !savedOrder.includes(id));
-  const initOrder = [...missingStandardIds, ...savedOrder.filter(id => standardIds.includes(id) || customIds.includes(id))];
-
   const [biens, setBiens] = useState(initData?.biens || []);
-  const [customColumns, setCustomColumns] = useState(initCustomCols);
-  const [columnOrder, setColumnOrder] = useState(initOrder);
+  const [customColumns, setCustomColumns] = useState(initData?.customColumns || [
+    { id: 'custom_1778169397374', label: 'Commentaire' },
+    { id: 'custom_1778177173176', label: 'Contact' }
+  ]);
+  const [columnOrder, setColumnOrder] = useState(initData?.columnOrder || []);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
   const [isLoading] = useState(false);
@@ -59,6 +34,7 @@ const BienPage = () => {
   const [addMode, setAddMode] = useState(null); // 'ai' or 'manual'
   const [newColumnName, setNewColumnName] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [expandedBiens, setExpandedBiens] = useState({});
 
   const saveAll = (updatedBiens, updatedCols, updatedOrder) => {
     const data = {
@@ -66,9 +42,7 @@ const BienPage = () => {
       customColumns: updatedCols ?? customColumns,
       columnOrder: updatedOrder ?? columnOrder,
     };
-    // localStorage toujours (fallback Forge)
     localStorage.setItem(BIENS_STORAGE_KEY, JSON.stringify(data));
-    // Écriture dans biens.json via server.cjs quand disponible
     fetch('/api/biens/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,29 +50,62 @@ const BienPage = () => {
     }).catch(() => {});
   };
 
-  // Chargement au démarrage : API (biens.json) prioritaire, localStorage en fallback
   useEffect(() => {
     fetch('/api/biens')
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
-        const stdIds = STANDARD_COLUMNS.map(c => c.id);
-        const custIds = (data.customColumns || []).map(c => c.id);
-        const order = data.columnOrder || [];
-        const missing = stdIds.filter(id => !order.includes(id));
-        const finalOrder = [...missing, ...order.filter(id => stdIds.includes(id) || custIds.includes(id))];
         setBiens(data.biens || []);
-        setCustomColumns(data.customColumns || []);
-        setColumnOrder(finalOrder);
+        const cols = data.customColumns && data.customColumns.length > 0 ? data.customColumns : [
+          { id: 'custom_1778169397374', label: 'Commentaire' },
+          { id: 'custom_1778177173176', label: 'Contact' }
+        ];
+        setCustomColumns(cols);
+        setColumnOrder(data.columnOrder || []);
+        
+        // Initialiser les actifs comme ouverts, les abandonnés comme fermés par défaut
+        const initialExpanded = {};
+        (data.biens || []).forEach(b => {
+          initialExpanded[b.id] = !b.abandonne;
+        });
+        setExpandedBiens(initialExpanded);
+
         localStorage.setItem(BIENS_STORAGE_KEY, JSON.stringify({
           biens: data.biens || [],
-          customColumns: data.customColumns || [],
-          columnOrder: finalOrder,
+          customColumns: cols,
+          columnOrder: data.columnOrder || [],
         }));
       })
       .catch(() => {
-        // API indisponible (Forge) → données déjà chargées depuis localStorage dans useState
+        // Fallback
+        const initialExpanded = {};
+        biens.forEach(b => {
+          initialExpanded[b.id] = !b.abandonne;
+        });
+        setExpandedBiens(initialExpanded);
       });
   }, []);
+
+  const toggleExpand = (id) => {
+    setExpandedBiens(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const areAllExpanded = useMemo(() => {
+    const actifs = biens.filter(b => !b.abandonne);
+    if (actifs.length === 0) return false;
+    return actifs.every(b => expandedBiens[b.id] === true);
+  }, [biens, expandedBiens]);
+
+  const toggleAllExpanded = () => {
+    const nextState = !areAllExpanded;
+    const updated = { ...expandedBiens };
+    biens.filter(b => !b.abandonne).forEach(b => {
+      updated[b.id] = nextState;
+    });
+    setExpandedBiens(updated);
+  };
 
   const sortedBiens = useMemo(() => {
     let sortableItems = [...biens];
@@ -142,8 +149,10 @@ const BienPage = () => {
     return sortableItems;
   }, [biens, sortConfig]);
 
+  const actifs = useMemo(() => sortedBiens.filter(b => !b.abandonne), [sortedBiens]);
+  const abandonnes = useMemo(() => sortedBiens.filter(b => b.abandonne), [sortedBiens]);
+
   const requestSort = (key) => {
-    if (key === 'liens') return;
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -154,7 +163,6 @@ const BienPage = () => {
     setSortConfig({ key, direction });
   };
 
-  // Heuristic Parser (Fallback)
   const parseAdTextHeuristic = (text) => {
     const data = {
       nom: "Nouveau Bien",
@@ -194,10 +202,7 @@ const BienPage = () => {
     let apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (apiKey) apiKey = apiKey.trim().replace(/^["']|["']$/g, '');
     
-    console.log("Tentative d'analyse avec Gemini...");
-    
     if (!apiKey || apiKey.includes("INSÉRER")) {
-      console.warn("Clé VITE_GEMINI_API_KEY manquante ou invalide dans .env.local");
       setParsedData({...parseAdTextHeuristic(newBienText), id: Date.now()});
       setIsAnalyzing(false);
       return;
@@ -237,17 +242,15 @@ const BienPage = () => {
       const result = await response.json();
       
       if (result.error) {
-        throw new Error(`${result.error.message} (Status: ${result.error.status}, Code: ${result.error.code})`);
+        throw new Error(`${result.error.message}`);
       }
 
       if (!result.candidates || !result.candidates[0]) {
-        throw new Error("L'IA n'a pas renvoyé de réponse (Censuré ou vide)");
+        throw new Error("L'IA n'a pas renvoyé de réponse");
       }
 
       let aiText = result.candidates[0].content.parts[0].text;
-      console.log("RÉPONSE BRUTE IA:", aiText);
       
-      // Nettoyage ultra-robuste du JSON
       const start = aiText.indexOf('{');
       const end = aiText.lastIndexOf('}');
       
@@ -268,7 +271,6 @@ const BienPage = () => {
         customValues: {}
       });
     } catch (err) {
-      console.error("ERREUR IA DÉTAILLÉE:", err);
       setAnalysisError(err.message || "Erreur inconnue");
       setParsedData({...parseAdTextHeuristic(newBienText), id: Date.now()});
     } finally {
@@ -279,6 +281,7 @@ const BienPage = () => {
   const addBien = () => {
     const updated = [parsedData, ...biens];
     setBiens(updated);
+    setExpandedBiens(prev => ({ ...prev, [parsedData.id]: true }));
     saveAll(updated);
     setIsAddModalOpen(false);
     setParsedData(null);
@@ -358,202 +361,128 @@ const BienPage = () => {
     saveAll(updatedBiens, updatedCols, updatedOrder);
   };
 
-  const moveColumn = (id, direction) => {
-    const index = columnOrder.indexOf(id);
-    if (index < 0) return;
-    if (direction === -1 && index === 0) return;
-    if (direction === 1 && index === columnOrder.length - 1) return;
-
-    const updatedOrder = [...columnOrder];
-    const temp = updatedOrder[index];
-    updatedOrder[index] = updatedOrder[index + direction];
-    updatedOrder[index + direction] = temp;
-
-    setColumnOrder(updatedOrder);
-    saveAll(null, null, updatedOrder);
+  const promptEditUrl = (bien, type) => {
+    const fieldName = type === 'maps' ? 'maps' : 'url';
+    const label = type === 'maps' ? 'lien Google Maps' : "lien de l'annonce";
+    const currentValue = bien[fieldName] || '';
+    const newValue = prompt(`Saisir ou modifier le ${label} :`, currentValue);
+    if (newValue !== null) {
+      updateBien(bien.id, fieldName, newValue);
+    }
   };
 
-  const getDpeColor = (dpe) => {
-    const colors = {
-      'A': 'bg-emerald-600',
-      'B': 'bg-emerald-500',
-      'C': 'bg-yellow-400',
-      'D': 'bg-yellow-500',
-      'E': 'bg-orange-500',
-      'F': 'bg-red-500',
-      'G': 'bg-red-700'
-    };
-    return colors[dpe] || 'bg-slate-300';
-  };
-
-  if (isLoading) {
+  const renderTableSection = (list, isArchive = false) => {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-brand-primary animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 min-h-0 min-w-0 p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto pb-20 md:pb-8">
-      <header className="flex flex-wrap gap-3 justify-between items-start">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Recherche de Biens</h2>
-          <p className="text-xs md:text-sm text-slate-500 font-bold uppercase tracking-widest mt-1">Organisation et suivi des annonces</p>
-        </div>
-        <div className="flex gap-2 md:gap-3 flex-wrap">
-          <button
-            onClick={() => setIsColumnModalOpen(true)}
-            className="px-3 md:px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase flex items-center gap-1.5 hover:bg-slate-200 transition-all"
-          >
-            <Columns size={14} /> <span className="hidden sm:inline">Gérer </span>Colonnes
-          </button>
-          <button
-            onClick={() => {
-              setAddMode('ai');
-              setParsedData(null);
-              setNewBienText('');
-              setIsAddModalOpen(true);
-            }}
-            className="btn-primary flex items-center gap-2 px-4 md:px-6"
-          >
-            <Plus size={18} /> <span className="hidden sm:inline">Ajouter un </span>bien
-          </button>
-        </div>
-      </header>
-
-       <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-300 overflow-hidden">
+      <div className={`rounded-[2.5rem] shadow-xl shadow-slate-200/50 border overflow-hidden transition-all duration-300 ${
+        isArchive 
+          ? 'bg-slate-50/40 border-slate-200 opacity-90 hover:opacity-100' 
+          : 'bg-white border-slate-300'
+      }`}>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead className="bg-slate-50/80 border-b border-slate-300">
               <tr>
-                {columnOrder.map((colId, index) => {
-                  const std = STANDARD_COLUMNS.find(c => c.id === colId);
-                  const cust = customColumns.find(c => c.id === colId);
-                  if (!std && !cust) return null;
-                  
-                  const label = std ? std.label : cust.label;
-                  const align = std?.align || 'left';
-                  const width = std?.width || '';
-                  const minWidth = std?.minWidth || (cust ? 'min-w-[120px]' : '');
-                  
-                  return (
-                    <th 
-                      key={colId} 
-                      className={cn(
-                        "px-2 py-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter group/col relative transition-all",
-                        align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left',
-                        width, minWidth
-                      )}
-                    >
-                      <div className={cn("flex items-center gap-1", align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start')}>
-                        {index > 0 && (
-                          <button onClick={() => moveColumn(colId, -1)} className="opacity-0 group-hover/col:opacity-100 hover:text-brand-primary transition-opacity bg-slate-100 rounded p-0.5"><ChevronLeft size={8} /></button>
-                        )}
-                        <button 
-                          onClick={() => requestSort(colId)}
-                          disabled={colId === 'liens'}
-                          className={cn(
-                            "flex items-center gap-0.5 transition-colors font-black",
-                            colId !== 'liens' ? 'hover:text-slate-700 cursor-pointer' : '',
-                            sortConfig.key === colId ? 'text-brand-primary font-extrabold' : ''
-                          )}
-                        >
-                          <span>{label}</span>
-                          {colId !== 'liens' && (
-                            <span className="text-[10px] inline-flex items-center">
-                              {sortConfig.key === colId ? (
-                                sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-brand-primary" /> : <ChevronDown size={12} className="text-brand-primary" />
-                              ) : null}
-                            </span>
-                          )}
-                        </button>
-                        {index < columnOrder.length - 1 && (
-                          <button onClick={() => moveColumn(colId, 1)} className="opacity-0 group-hover/col:opacity-100 hover:text-brand-primary transition-opacity bg-slate-100 rounded p-0.5"><ChevronRight size={8} /></button>
-                        )}
-                      </div>
-                      {cust && (
-                        <button onClick={() => deleteColumn(colId)} className="absolute top-1/2 -translate-y-1/2 right-1 opacity-0 group-hover/col:opacity-100 text-rose-400 hover:text-rose-600 transition-opacity bg-rose-50 rounded p-0.5">
-                          <Trash2 size={8} />
-                        </button>
-                      )}
-                    </th>
-                  );
-                })}
-                <th className="px-4 py-3 w-10"></th>
+                <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-28">
+                  <button 
+                    onClick={() => requestSort('note')}
+                    className={`flex items-center justify-center gap-1 mx-auto font-black hover:text-slate-700 transition-colors cursor-pointer ${sortConfig.key === 'note' ? 'text-brand-primary' : ''}`}
+                  >
+                    <span>Note</span>
+                    {sortConfig.key === 'note' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                    )}
+                  </button>
+                </th>
+
+                <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center w-[160px]">
+                  <span>Suivi / Étapes</span>
+                </th>
+
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-left min-w-[280px]">
+                  <button 
+                    onClick={() => requestSort('nom')}
+                    className={`flex items-center gap-1 font-black hover:text-slate-700 transition-colors cursor-pointer ${sortConfig.key === 'nom' ? 'text-brand-primary' : ''}`}
+                  >
+                    <span>Bien / Nom & Liens</span>
+                    {sortConfig.key === 'nom' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                    )}
+                  </button>
+                </th>
+
+                <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-left w-44">
+                  <button 
+                    onClick={() => requestSort('ville')}
+                    className={`flex items-center gap-1 font-black hover:text-slate-700 transition-colors cursor-pointer ${sortConfig.key === 'ville' ? 'text-brand-primary' : ''}`}
+                  >
+                    <span>Ville</span>
+                    {sortConfig.key === 'ville' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                    )}
+                  </button>
+                </th>
+
+                <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-28">
+                  <button 
+                    onClick={() => requestSort('surface')}
+                    className={`flex items-center justify-end gap-1 w-full font-black hover:text-slate-700 transition-colors cursor-pointer ${sortConfig.key === 'surface' ? 'text-brand-primary' : ''}`}
+                  >
+                    <span>Surface</span>
+                    {sortConfig.key === 'surface' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                    )}
+                  </button>
+                </th>
+
+                <th className="px-3 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right w-36">
+                  <button 
+                    onClick={() => requestSort('prix')}
+                    className={`flex items-center justify-end gap-1 w-full font-black hover:text-slate-700 transition-colors cursor-pointer ${sortConfig.key === 'prix' ? 'text-brand-primary' : ''}`}
+                  >
+                    <span>Prix</span>
+                    {sortConfig.key === 'prix' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                    )}
+                  </button>
+                </th>
+
+                <th className="px-3 py-3 w-24 text-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Détails</span>
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {biens.length === 0 ? (
+            <tbody className="divide-y divide-slate-200">
+              {list.length === 0 ? (
                 <tr>
-                  <td colSpan={columnOrder.length + 1} className="px-6 py-20 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-20 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-4 bg-slate-50 rounded-full text-slate-300">
                         <Search size={48} />
                       </div>
-                      <p className="font-black uppercase text-[10px] tracking-widest">Aucun bien enregistré</p>
+                      <p className="font-black uppercase text-[10px] tracking-widest">
+                        {isArchive ? "Aucun bien écarté" : "Aucun bien enregistré"}
+                      </p>
                     </div>
                   </td>
                 </tr>
-              ) : sortedBiens.map(bien => (
-                <tr key={bien.id} className="hover:bg-slate-50/50 transition-colors group">
-                  {columnOrder.map(colId => {
-                    if (colId === 'contact') return (
-                      <td key="contact" className="px-2 py-1.5 text-center">
-                        <button 
-                          onClick={() => updateBien(bien.id, 'contact', !bien.contact)}
-                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bien.contact ? 'bg-amber-500 text-white border border-amber-500 shadow-sm scale-110' : 'bg-slate-50 border border-slate-300 text-transparent hover:border-amber-400 hover:bg-amber-50'}`}
-                        >
-                          <Check size={12} className={bien.contact ? 'opacity-100' : 'opacity-0'} />
-                        </button>
-                      </td>
-                    );
-
-                    if (colId === 'visitePrevue') return (
-                      <td key="visitePrevue" className="px-2 py-1.5 text-center">
-                        <button 
-                          onClick={() => updateBien(bien.id, 'visitePrevue', !bien.visitePrevue)}
-                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bien.visitePrevue ? 'bg-indigo-500 text-white border border-indigo-500 shadow-sm scale-110' : 'bg-slate-50 border border-slate-300 text-transparent hover:border-indigo-400 hover:bg-indigo-50'}`}
-                        >
-                          <Check size={12} className={bien.visitePrevue ? 'opacity-100' : 'opacity-0'} />
-                        </button>
-                      </td>
-                    );
-
-                    if (colId === 'visite') return (
-                      <td key="visite" className="px-2 py-1.5 text-center">
-                        <button 
-                          onClick={() => updateBien(bien.id, 'visite', !bien.visite)}
-                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bien.visite ? 'bg-emerald-500 text-white border border-emerald-400 shadow-sm scale-110' : 'bg-slate-50 border border-slate-300 text-transparent hover:border-emerald-400 hover:bg-emerald-50'}`}
-                        >
-                          <Check size={12} className={bien.visite ? 'opacity-100' : 'opacity-0'} />
-                        </button>
-                      </td>
-                    );
-
-                    if (colId === 'abandonne') return (
-                      <td key="abandonne" className="px-2 py-1.5 text-center">
-                        <button 
-                          onClick={() => updateBien(bien.id, 'abandonne', !bien.abandonne)}
-                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${bien.abandonne ? 'bg-rose-500 text-white border border-rose-500 shadow-sm scale-110' : 'bg-slate-50 border border-slate-300 text-transparent hover:border-rose-400 hover:bg-rose-50'}`}
-                        >
-                          <X size={12} className={bien.abandonne ? 'opacity-100' : 'opacity-0'} />
-                        </button>
-                      </td>
-                    );
-
-                    if (colId === 'note') return (
-                      <td key="note" className="px-2 py-1.5 text-center">
+              ) : list.map(bien => {
+                const isExpanded = expandedBiens[bien.id] ?? false;
+                const prixM2 = bien.surface > 0 ? Math.round(bien.prix / bien.surface) : 0;
+                
+                return (
+                  <React.Fragment key={bien.id}>
+                    <tr className={`transition-colors duration-200 border-l-4 ${bien.abandonne ? 'border-l-rose-500 bg-rose-50/10 hover:bg-rose-50/20' : isExpanded ? 'border-l-brand-primary bg-indigo-50/5 hover:bg-indigo-50/10' : 'border-l-transparent hover:bg-slate-50/50'}`}>
+                      <td className="px-3 py-3.5 text-center align-middle">
                         <div className="flex items-center justify-center gap-0.5">
                           {[1, 2, 3, 4, 5].map(star => (
                             <button
                               key={star}
                               onClick={() => updateBien(bien.id, 'note', bien.note === star ? 0 : star)}
-                              className="focus:outline-none hover:scale-110 transition-transform"
+                              className="focus:outline-none hover:scale-120 active:scale-90 transition-transform cursor-pointer"
                             >
                               <Star 
-                                size={12} 
-                                className={`transition-colors ${
+                                size={14} 
+                                className={`transition-colors duration-150 ${
                                   (bien.note || 0) >= star 
                                     ? "fill-amber-400 text-amber-400" 
                                     : "text-slate-200 hover:text-amber-200"
@@ -563,211 +492,447 @@ const BienPage = () => {
                           ))}
                         </div>
                       </td>
-                    );
 
-                    if (colId === 'nom') return (
-                      <td key="nom" className="px-2 py-1.5">
-                        <input 
-                          className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-800 text-xs focus:ring-0 w-full transition-colors"
-                          value={bien.nom}
-                          onChange={(e) => updateBien(bien.id, 'nom', e.target.value)}
-                        />
-                        <input 
-                          placeholder="Lien de l'annonce..."
-                          className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0 text-[9px] font-bold text-slate-400 focus:ring-0 w-full transition-colors"
-                          value={bien.url}
-                          onChange={(e) => updateBien(bien.id, 'url', e.target.value)}
-                        />
-                      </td>
-                    );
-
-                    if (colId === 'agence') return (
-                      <td key="agence" className="px-2 py-1.5">
-                        <input 
-                          className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-bold text-slate-500 text-[11px] focus:ring-0 w-full transition-colors"
-                          value={bien.agence || ''}
-                          placeholder="Agence..."
-                          onChange={(e) => updateBien(bien.id, 'agence', e.target.value)}
-                        />
-                      </td>
-                    );
-
-                    if (colId === 'ville') return (
-                      <td key="ville" className="px-2 py-1.5">
-                        <div className="flex items-center gap-1 text-slate-600">
-                          <MapPin size={10} className="text-slate-300" />
-                          <input 
-                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-bold text-xs focus:ring-0 w-full transition-colors"
-                            value={bien.ville}
-                            onChange={(e) => updateBien(bien.id, 'ville', e.target.value)}
-                          />
-                        </div>
-                      </td>
-                    );
-
-                    if (colId === 'prix') return (
-                      <td key="prix" className="px-2 py-1.5 text-right">
-                        <div className="flex items-center justify-end gap-0.5">
-                          <input 
-                            type="number"
-                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-900 text-xs focus:ring-0 w-24 text-right transition-colors"
-                            value={bien.prix}
-                            onChange={(e) => updateBien(bien.id, 'prix', Number(e.target.value))}
-                          />
-                          <span className="text-slate-400 font-bold text-[10px]">€</span>
-                        </div>
-                      </td>
-                    );
-
-                    if (colId === 'surface') return (
-                      <td key="surface" className="px-2 py-1.5 text-right">
-                        <div className="flex items-center justify-end gap-0.5">
-                          <input 
-                            type="number"
-                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-black text-slate-900 text-xs focus:ring-0 w-16 text-right transition-colors"
-                            value={bien.surface}
-                            onChange={(e) => updateBien(bien.id, 'surface', Number(e.target.value))}
-                          />
-                          <span className="text-slate-400 font-bold text-[10px]">m²</span>
-                        </div>
-                      </td>
-                    );
-
-                    if (colId === 'chambres') return (
-                      <td key="chambres" className="px-2 py-1.5 text-center">
-                        <input 
-                          type="number"
-                          className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-bold text-slate-700 text-xs focus:ring-0 w-8 text-center transition-colors"
-                          value={bien.chambres || ''}
-                          placeholder="-"
-                          onChange={(e) => updateBien(bien.id, 'chambres', Number(e.target.value))}
-                        />
-                      </td>
-                    );
-
-                    if (colId === 'terrain') return (
-                      <td key="terrain" className="px-2 py-1.5 text-center">
-                        <div className="flex items-center justify-center gap-0.5">
-                          <input 
-                            type="number"
-                            className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-bold text-slate-700 text-xs focus:ring-0 w-12 text-center transition-colors"
-                            value={bien.terrain || ''}
-                            placeholder="-"
-                            onChange={(e) => updateBien(bien.id, 'terrain', Number(e.target.value))}
-                          />
-                          {bien.terrain > 0 && <span className="text-[9px] text-slate-400 font-bold">m²</span>}
-                        </div>
-                      </td>
-                    );
-
-                    if (colId === 'dpe') return (
-                      <td key="dpe" className="px-2 py-1.5 text-center">
-                        <select 
-                          className={`px-1 py-0 rounded text-[9px] font-black border border-transparent hover:border-slate-400 focus:border-brand-primary focus:ring-0 cursor-pointer appearance-none text-center w-8 transition-colors ${
-                            bien.dpe === 'A' || bien.dpe === 'B' ? 'bg-emerald-100 text-emerald-600' :
-                            bien.dpe === 'C' || bien.dpe === 'D' ? 'bg-amber-100 text-amber-600' :
-                            'bg-rose-100 text-rose-600'
-                          }`}
-                          value={bien.dpe || '-'}
-                          onChange={(e) => updateBien(bien.id, 'dpe', e.target.value)}
-                        >
-                          <option value="-">-</option>
-                          {['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(grade => (
-                            <option key={grade} value={grade}>{grade}</option>
-                          ))}
-                        </select>
-                      </td>
-                    );
-
-                    if (colId === 'stationnement') return (
-                      <td key="stationnement" className="px-2 py-1.5">
-                        <input 
-                          className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 text-[10px] font-bold text-slate-500 focus:ring-0 w-full transition-colors"
-                          value={bien.stationnement || ''}
-                          placeholder="..."
-                          onChange={(e) => updateBien(bien.id, 'stationnement', e.target.value)}
-                        />
-                      </td>
-                    );
-
-                    if (colId === 'travaux') return (
-                      <td key="travaux" className="px-2 py-1.5 text-center">
-                        <select 
-                          className={`px-1 py-0 rounded text-[8px] font-black uppercase border border-transparent hover:border-slate-400 focus:border-brand-primary focus:ring-0 cursor-pointer appearance-none text-center transition-colors ${
-                            bien.travaux === 'Non' ? 'text-emerald-500 bg-emerald-50' :
-                            bien.travaux === 'Rafraîchissement' ? 'text-amber-500 bg-amber-50' :
-                            'text-rose-500 bg-rose-50'
-                          }`}
-                          value={bien.travaux || 'Non'}
-                          onChange={(e) => updateBien(bien.id, 'travaux', e.target.value)}
-                        >
-                          <option value="Non">Non</option>
-                          <option value="Rafraîchissement">Raf.</option>
-                          <option value="Important">Imp.</option>
-                        </select>
-                      </td>
-                    );
-
-                    if (colId === 'prixM2') return (
-                      <td key="prixM2" className="px-2 py-1.5 text-[10px] font-black text-slate-400 text-right">
-                        {bien.surface > 0 ? Math.round(bien.prix / bien.surface).toLocaleString() : 0} €
-                      </td>
-                    );
-
-                    if (colId === 'liens') return (
-                      <td key="liens" className="px-2 py-1.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                      <td className="px-3 py-3.5 text-center align-middle">
+                        <div className="flex items-center justify-center gap-1.5 bg-slate-100/80 p-1 rounded-xl w-fit mx-auto border border-slate-200">
                           <button 
-                            onClick={() => {
-                              const url = prompt("Coller le lien Google Maps :", bien.maps || '');
-                              if (url !== null) updateBien(bien.id, 'maps', url);
-                            }}
-                            className={`p-1 rounded transition-all ${bien.maps ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}
+                            onClick={() => updateBien(bien.id, 'contact', !bien.contact)}
+                            title="1er Contact"
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                              bien.contact 
+                                ? 'bg-amber-500 text-white shadow-sm font-black scale-105' 
+                                : 'text-slate-400 hover:bg-amber-50 hover:text-amber-600'
+                            }`}
                           >
-                            <MapIcon size={12} />
+                            <Phone size={13} />
                           </button>
                           
-                          {bien.maps && (
-                            <a href={bien.maps} target="_blank" rel="noopener noreferrer" className="p-1 bg-emerald-500 text-white rounded" title="Maps">
-                              <ExternalLink size={12} />
-                            </a>
-                          )}
+                          <button 
+                            onClick={() => updateBien(bien.id, 'visitePrevue', !bien.visitePrevue)}
+                            title="Visite prévue"
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                              bien.visitePrevue 
+                                ? 'bg-indigo-500 text-white shadow-sm font-black scale-105' 
+                                : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'
+                            }`}
+                          >
+                            <Calendar size={13} />
+                          </button>
 
-                          {bien.url && (
-                            <a href={bien.url} target="_blank" rel="noopener noreferrer" className="p-1 bg-slate-100 text-slate-600 rounded hover:bg-brand-primary hover:text-white" title="Annonce">
-                              <ExternalLink size={12} />
-                            </a>
+                          <button 
+                            onClick={() => updateBien(bien.id, 'visite', !bien.visite)}
+                            title="Visité"
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                              bien.visite 
+                                ? 'bg-emerald-500 text-white shadow-sm font-black scale-105' 
+                                : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'
+                            }`}
+                          >
+                            <Check size={13} />
+                          </button>
+
+                          <button 
+                            onClick={() => updateBien(bien.id, 'abandonne', !bien.abandonne)}
+                            title="Abandonné"
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                              bien.abandonne 
+                                ? 'bg-rose-500 text-white shadow-sm font-black scale-105' 
+                                : 'text-slate-400 hover:bg-rose-50 hover:text-rose-600'
+                            }`}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 align-middle">
+                        <div className="flex flex-col space-y-1 w-full">
+                          <input 
+                            className="bg-transparent border border-transparent hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-lg px-2 py-1 font-bold text-slate-800 text-xs focus:ring-0 w-full transition-all outline-none"
+                            value={bien.nom}
+                            onChange={(e) => updateBien(bien.id, 'nom', e.target.value)}
+                            placeholder="Nom du bien..."
+                          />
+                          <div className="flex items-center gap-2 pl-2">
+                            {bien.url ? (
+                              <div className="flex items-center bg-sky-50 border border-sky-100 rounded-lg pr-1">
+                                <a 
+                                  href={bien.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-black text-sky-600 hover:text-sky-800 transition-colors"
+                                >
+                                  <ExternalLink size={10} /> ANNONCE
+                                </a>
+                                <button 
+                                  onClick={() => promptEditUrl(bien, 'url')}
+                                  title="Modifier le lien de l'annonce"
+                                  className="p-1 text-sky-400 hover:text-sky-700 transition-colors cursor-pointer"
+                                >
+                                  <Edit2 size={8} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => promptEditUrl(bien, 'url')}
+                                className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-500 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                              >
+                                <Plus size={8} /> ANNONCE
+                              </button>
+                            )}
+
+                            {bien.maps ? (
+                              <div className="flex items-center bg-emerald-50 border border-emerald-100 rounded-lg pr-1">
+                                <a 
+                                  href={bien.maps} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-black text-emerald-600 hover:text-emerald-800 transition-colors"
+                                >
+                                  <MapIcon size={10} /> GOOGLE MAPS
+                                </a>
+                                <button 
+                                  onClick={() => promptEditUrl(bien, 'maps')}
+                                  title="Modifier le lien Google Maps"
+                                  className="p-1 text-emerald-400 hover:text-emerald-700 transition-colors cursor-pointer"
+                                >
+                                  <Edit2 size={8} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => promptEditUrl(bien, 'maps')}
+                                className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-500 rounded-lg text-[9px] font-bold transition-all cursor-pointer"
+                              >
+                                <Plus size={8} /> GOOGLE MAPS
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3.5 align-middle">
+                        <div className="flex items-center gap-1 text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 focus-within:border-brand-primary focus-within:bg-white transition-all">
+                          <MapPin size={11} className="text-slate-400 shrink-0" />
+                          <input 
+                            className="bg-transparent border-none p-0 font-bold text-xs focus:ring-0 w-full outline-none text-slate-700"
+                            value={bien.ville}
+                            onChange={(e) => updateBien(bien.id, 'ville', e.target.value)}
+                            placeholder="Ville..."
+                          />
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3.5 align-middle text-right">
+                        <div className="flex items-center justify-end gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 focus-within:border-brand-primary focus-within:bg-white transition-all w-[90px] ml-auto">
+                          <input 
+                            type="number"
+                            className="bg-transparent border-none p-0 font-black text-xs text-right focus:ring-0 w-full outline-none text-slate-800"
+                            value={bien.surface || ''}
+                            onChange={(e) => updateBien(bien.id, 'surface', Number(e.target.value))}
+                            placeholder="0"
+                          />
+                          <span className="text-slate-400 font-extrabold text-[9px] select-none">m²</span>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3.5 align-middle text-right">
+                        <div className="flex flex-col justify-center items-end space-y-0.5">
+                          <div className="flex items-center justify-end gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 focus-within:border-brand-primary focus-within:bg-white transition-all w-28 ml-auto">
+                            <input 
+                              type="number"
+                              className="bg-transparent border-none p-0 font-black text-xs text-right focus:ring-0 w-full outline-none text-slate-900"
+                              value={bien.prix || ''}
+                              onChange={(e) => updateBien(bien.id, 'prix', Number(e.target.value))}
+                              placeholder="0"
+                            />
+                            <span className="text-slate-400 font-extrabold text-[9px] select-none">€</span>
+                          </div>
+                          {prixM2 > 0 && (
+                            <span className="text-[10px] font-black text-slate-400 pr-1 tracking-tight">
+                              {prixM2.toLocaleString()} €/m²
+                            </span>
                           )}
                         </div>
                       </td>
-                    );
 
-                    // Colonnes personnalisées
-                    return (
-                      <td key={colId} className="px-2 py-1.5">
-                        <input 
-                          className="bg-transparent border border-transparent hover:border-slate-400 focus:border-brand-primary rounded px-1 py-0.5 font-bold text-slate-700 text-xs focus:ring-0 w-full transition-colors"
-                          value={bien.customValues?.[colId] || ''}
-                          onChange={(e) => updateBien(bien.id, colId, e.target.value)}
-                          placeholder="..."
-                        />
+                      <td className="px-3 py-3.5 align-middle text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button 
+                            onClick={() => toggleExpand(bien.id)}
+                            title={isExpanded ? "Masquer les détails" : "Afficher les détails"}
+                            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${isExpanded ? 'bg-indigo-50 border-indigo-200 text-brand-primary' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
+                          >
+                            {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          </button>
+                          
+                          <button 
+                            onClick={() => deleteBien(bien.id)}
+                            title="Supprimer ce bien"
+                            className="p-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-300 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
-                    );
-                  })}
-                  <td className="px-2 py-1.5 text-center">
-                    <button 
-                      onClick={() => deleteBien(bien.id)}
-                      className="p-1 text-slate-300 hover:text-rose-500 transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </tr>
+
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-0 border-t-0 align-top bg-slate-50/20">
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="py-3"
+                            >
+                              <div className="bg-white rounded-3xl border border-slate-300 shadow-md p-5 grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
+                                <div className="absolute top-4 right-4 bg-slate-50 px-2 py-0.5 rounded-md text-[8px] font-black text-slate-400 uppercase tracking-widest border border-slate-200 pointer-events-none select-none">
+                                  ID: {bien.id}
+                                </div>
+
+                                <div className="space-y-4">
+                                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                    <Info size={14} className="text-brand-primary" /> Caractéristiques techniques
+                                  </h4>
+                                  
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="col-span-2">
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Agence Immobilière</label>
+                                      <input 
+                                        className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none transition-all"
+                                        value={bien.agence || ''}
+                                        placeholder="Nom de l'agence..."
+                                        onChange={(e) => updateBien(bien.id, 'agence', e.target.value)}
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Chambres</label>
+                                      <input 
+                                        type="number"
+                                        className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none text-center transition-all"
+                                        value={bien.chambres || ''}
+                                        placeholder="-"
+                                        onChange={(e) => updateBien(bien.id, 'chambres', Number(e.target.value))}
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Jardin / Terrain</label>
+                                      <div className="relative">
+                                        <input 
+                                          type="number"
+                                          className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none text-center transition-all"
+                                          value={bien.terrain || ''}
+                                          placeholder="-"
+                                          onChange={(e) => updateBien(bien.id, 'terrain', Number(e.target.value))}
+                                        />
+                                        {bien.terrain > 0 && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-bold">m²</span>}
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Classe Énergie (DPE)</label>
+                                      <select 
+                                        className={`w-full border rounded-lg px-2 py-1.5 text-xs font-black text-center outline-none cursor-pointer transition-all ${
+                                          bien.dpe === 'A' || bien.dpe === 'B' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
+                                          bien.dpe === 'C' || bien.dpe === 'D' ? 'bg-amber-50 border-amber-200 text-amber-600' :
+                                          bien.dpe === '-' ? 'bg-slate-50 border-slate-200 text-slate-400' :
+                                          'bg-rose-50 border-rose-200 text-rose-600'
+                                        }`}
+                                        value={bien.dpe || '-'}
+                                        onChange={(e) => updateBien(bien.id, 'dpe', e.target.value)}
+                                      >
+                                        <option value="-">-</option>
+                                        {['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(grade => (
+                                          <option key={grade} value={grade}>{grade}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">État / Travaux</label>
+                                      <select 
+                                        className={`w-full border rounded-lg px-2 py-1.5 text-xs font-black text-center outline-none cursor-pointer transition-all ${
+                                          bien.travaux === 'Non' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
+                                          bien.travaux === 'Rafraîchissement' ? 'bg-amber-50 border-amber-200 text-amber-600' :
+                                          'bg-rose-50 border-rose-200 text-rose-600'
+                                        }`}
+                                        value={bien.travaux || 'Non'}
+                                        onChange={(e) => updateBien(bien.id, 'travaux', e.target.value)}
+                                      >
+                                        <option value="Non">Non</option>
+                                        <option value="Rafraîchissement">Raf.</option>
+                                        <option value="Important">Imp.</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Stationnement</label>
+                                      <input 
+                                        className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none transition-all"
+                                        value={bien.stationnement || ''}
+                                        placeholder="ex: Garage"
+                                        onChange={(e) => updateBien(bien.id, 'stationnement', e.target.value)}
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Année</label>
+                                      <input 
+                                        className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none text-center transition-all"
+                                        value={bien.annee || ''}
+                                        placeholder="-"
+                                        onChange={(e) => updateBien(bien.id, 'annee', e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {customColumns.filter(c => c.id !== 'custom_1778169397374' && c.id !== 'custom_1778177173176').map(col => (
+                                    <div key={col.id} className="mt-3">
+                                      <div className="flex justify-between items-center mb-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">{col.label}</label>
+                                        <button 
+                                          onClick={() => deleteColumn(col.id)}
+                                          className="text-rose-400 hover:text-rose-600 text-[8px] font-bold uppercase transition-all cursor-pointer"
+                                        >
+                                          Suppr.
+                                        </button>
+                                      </div>
+                                      <input 
+                                        className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none transition-all"
+                                        value={bien.customValues?.[col.id] || ''}
+                                        onChange={(e) => updateBien(bien.id, col.id, e.target.value)}
+                                        placeholder="..."
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="flex flex-col space-y-3 h-full lg:border-l lg:border-slate-100 lg:pl-6">
+                                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                    <Clipboard size={14} className="text-amber-500" /> Suivi & Commentaires
+                                  </h4>
+                                  
+                                  <div className="flex-1 flex flex-col space-y-3 min-h-[140px]">
+                                    <div className="flex-1 flex flex-col">
+                                      <textarea 
+                                        className="flex-1 w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-xl p-3 text-xs font-bold text-slate-700 outline-none resize-none transition-all shadow-inner leading-relaxed"
+                                        value={bien.customValues?.['custom_1778169397374'] || ''}
+                                        onChange={(e) => updateBien(bien.id, 'custom_1778169397374', e.target.value)}
+                                        placeholder="Votre commentaire sur ce bien (ex: Travaux à prévoir, négociation possible, quartier calme, état de l'électricité...)"
+                                      />
+                                    </div>
+                                    
+                                    {bien.notes && (
+                                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-500 leading-relaxed font-semibold max-h-[160px] overflow-y-auto">
+                                        <span className="font-black text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Résumé IA / Annonce</span>
+                                        {bien.notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col space-y-3 h-full lg:border-l lg:border-slate-100 lg:pl-6">
+                                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                    <Phone size={14} className="text-emerald-500" /> Contact & Démarches
+                                  </h4>
+                                  
+                                  <div className="flex-grow flex flex-col min-h-[140px]">
+                                    <textarea 
+                                      className="flex-grow w-full bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-brand-primary focus:bg-white rounded-xl p-3 text-xs font-bold text-slate-700 outline-none resize-none transition-all shadow-inner leading-relaxed"
+                                      value={bien.customValues?.['custom_1778177173176'] || ''}
+                                      onChange={(e) => updateBien(bien.id, 'custom_1778177173176', e.target.value)}
+                                      placeholder="Coordonnées (nom, tél, mail), détails de l'agent immobilier, historique des relances..."
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          </td>
+                        </tr>
+                      )}
+                    </AnimatePresence>
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="flex-1 min-h-0 min-w-0 p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto pb-20 md:pb-8">
+      <header className="flex flex-wrap gap-3 justify-between items-start">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Recherche de Biens</h2>
+          <p className="text-xs md:text-sm text-slate-500 font-bold uppercase tracking-widest mt-1">Organisation et suivi des annonces</p>
+        </div>
+        <div className="flex gap-2 md:gap-3 flex-wrap">
+          {biens.length > 0 && (
+            <button
+              onClick={toggleAllExpanded}
+              className={`px-3 md:px-4 py-2 rounded-xl font-black text-[10px] uppercase flex items-center gap-1.5 border transition-all cursor-pointer ${
+                areAllExpanded 
+                  ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100' 
+                  : 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'
+              }`}
+            >
+              {areAllExpanded ? (
+                <><ChevronUp size={14} /> Tout réduire</>
+              ) : (
+                <><ChevronDown size={14} /> Tout déplier</>
+              )}
+            </button>
+          )}
+          <button
+            onClick={() => setIsColumnModalOpen(true)}
+            className="px-3 md:px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase flex items-center gap-1.5 hover:bg-slate-200 transition-all cursor-pointer"
+          >
+            <Columns size={14} /> <span className="hidden sm:inline">Ajouter </span>Colonne
+          </button>
+          <button
+            onClick={() => {
+              setAddMode('ai');
+              setParsedData(null);
+              setNewBienText('');
+              setIsAddModalOpen(true);
+            }}
+            className="btn-primary flex items-center gap-2 px-4 md:px-6 cursor-pointer"
+          >
+            <Plus size={18} /> <span className="hidden sm:inline">Ajouter un </span>bien
+          </button>
+        </div>
+      </header>
+
+      {/* SECTION DES BIENS ACTIFS */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-2">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            En cours de recherche ({actifs.length})
+          </h3>
+        </div>
+        {renderTableSection(actifs, false)}
+      </div>
+
+      {/* SECTION DES BIENS ABANDONNÉS */}
+      {abandonnes.length > 0 && (
+        <div className="space-y-4 pt-10 border-t border-slate-200 mt-12">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
+              Biens écartés / Archives ({abandonnes.length})
+            </h3>
+          </div>
+          {renderTableSection(abandonnes, true)}
+        </div>
+      )}
 
       {/* MODALES */}
       <AnimatePresence>
@@ -782,7 +947,7 @@ const BienPage = () => {
                 <div className="flex flex-col">
                   <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Ajouter un bien</h3>
                 </div>
-                <button onClick={() => setIsAddModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all"><X size={20} /></button>
+                <button onClick={() => setIsAddModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all cursor-pointer"><X size={20} /></button>
               </div>
 
               <div className="space-y-6">
@@ -795,7 +960,7 @@ const BienPage = () => {
                       </div>
                       <button 
                         onClick={startManualAdd}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all text-[9px] font-black uppercase tracking-wider"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all text-[9px] font-black uppercase tracking-wider cursor-pointer"
                       >
                         <Plus size={12} /> Saisie Manuelle
                       </button>
@@ -813,7 +978,7 @@ const BienPage = () => {
                       <button 
                         onClick={handleAnalyze}
                         disabled={!newBienText.trim() || isAnalyzing}
-                        className="bg-slate-900 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg shadow-slate-900/10"
+                        className="bg-slate-900 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg shadow-slate-900/10 cursor-pointer"
                       >
                         {isAnalyzing ? <><Loader2 size={14} className="animate-spin" /> Analyse en cours...</> : <><Search size={14} /> Analyser l'annonce</>}
                       </button>
@@ -836,36 +1001,36 @@ const BienPage = () => {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       <div className="col-span-2">
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Nom du bien</p>
-                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.nom} onChange={(e) => setParsedData({...parsedData, nom: e.target.value})} />
+                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.nom} onChange={(e) => setParsedData({...parsedData, nom: e.target.value})} />
                       </div>
                       <div className="col-span-2">
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Agence</p>
-                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.agence} onChange={(e) => setParsedData({...parsedData, agence: e.target.value})} />
+                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.agence} onChange={(e) => setParsedData({...parsedData, agence: e.target.value})} />
                       </div>
                       <div className="col-span-2">
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Ville</p>
-                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.ville} onChange={(e) => setParsedData({...parsedData, ville: e.target.value})} />
+                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.ville} onChange={(e) => setParsedData({...parsedData, ville: e.target.value})} />
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Prix (€)</p>
-                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.prix} onChange={(e) => setParsedData({...parsedData, prix: Number(e.target.value)})} />
+                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.prix} onChange={(e) => setParsedData({...parsedData, prix: Number(e.target.value)})} />
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Surface (m²)</p>
-                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.surface} onChange={(e) => setParsedData({...parsedData, surface: Number(e.target.value)})} />
+                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.surface} onChange={(e) => setParsedData({...parsedData, surface: Number(e.target.value)})} />
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Chambres</p>
-                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.chambres} onChange={(e) => setParsedData({...parsedData, chambres: Number(e.target.value)})} />
+                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.chambres} onChange={(e) => setParsedData({...parsedData, chambres: Number(e.target.value)})} />
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Terrain (m²)</p>
-                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.terrain} onChange={(e) => setParsedData({...parsedData, terrain: Number(e.target.value)})} />
+                        <input type="number" className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.terrain} onChange={(e) => setParsedData({...parsedData, terrain: Number(e.target.value)})} />
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">DPE</p>
                         <select 
-                          className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 uppercase text-center appearance-none" 
+                          className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 uppercase text-center appearance-none outline-none focus:border-brand-primary cursor-pointer" 
                           value={parsedData.dpe} 
                           onChange={(e) => setParsedData({...parsedData, dpe: e.target.value})}
                         >
@@ -877,11 +1042,11 @@ const BienPage = () => {
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Stationnement</p>
-                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.stationnement} onChange={(e) => setParsedData({...parsedData, stationnement: e.target.value})} />
+                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.stationnement} onChange={(e) => setParsedData({...parsedData, stationnement: e.target.value})} />
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Travaux</p>
-                        <select className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.travaux} onChange={(e) => setParsedData({...parsedData, travaux: e.target.value})}>
+                        <select className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary cursor-pointer" value={parsedData.travaux} onChange={(e) => setParsedData({...parsedData, travaux: e.target.value})}>
                           <option value="Non">Non</option>
                           <option value="Rafraîchissement">Rafraîchissement</option>
                           <option value="Important">Important</option>
@@ -889,11 +1054,11 @@ const BienPage = () => {
                       </div>
                       <div>
                         <p className="text-[9px] font-black text-emerald-600/60 uppercase mb-1">Année</p>
-                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800" value={parsedData.annee} onChange={(e) => setParsedData({...parsedData, annee: e.target.value})} />
+                        <input className="w-full bg-white border border-emerald-300 rounded-xl p-2 text-sm font-bold text-slate-800 outline-none focus:border-brand-primary" value={parsedData.annee} onChange={(e) => setParsedData({...parsedData, annee: e.target.value})} />
                       </div>
                     </div>
                     
-                    <button onClick={addBien} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
+                    <button onClick={addBien} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 cursor-pointer">
                       Ajouter ce bien au tableau
                     </button>
                   </motion.div>
@@ -910,7 +1075,7 @@ const BienPage = () => {
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               className="relative bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-slate-300"
             >
-              <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight">Ajouter une colonne</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight">Ajouter une colonne personnalisée</h3>
               <div className="space-y-4">
                 <input 
                   autoFocus
@@ -920,7 +1085,7 @@ const BienPage = () => {
                   onChange={(e) => setNewColumnName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addColumn()}
                 />
-                <button onClick={addColumn} className="w-full btn-primary">AJOUTER</button>
+                <button onClick={addColumn} className="w-full btn-primary cursor-pointer">AJOUTER</button>
               </div>
             </motion.div>
           </div>
@@ -929,9 +1094,5 @@ const BienPage = () => {
     </div>
   );
 };
-
-function cn(...classes) {
-  return classes.filter(Boolean).join(' ');
-}
 
 export default BienPage;

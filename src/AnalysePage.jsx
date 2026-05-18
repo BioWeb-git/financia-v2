@@ -13,6 +13,8 @@ import { twMerge } from 'tailwind-merge';
 
 function cn(...i) { return twMerge(clsx(i)); }
 
+
+
 function ChartHelp({ title, children, className = 'space-y-2' }) {
   const [open, setOpen] = useState(false);
   return (
@@ -145,7 +147,15 @@ function Alert({ level, msg }) {
 }
 
 function computeScenario(p, apport) {
-  const { price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, bankIncome, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale, guaranteeRate } = p;
+  const { 
+    price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, 
+    bankIncome, depensesFamille, rendement, prixParcelle, moisVente, raMode, 
+    matelas, travaux, epargneTotale, guaranteeRate,
+    montantCourt, montantMoyen,
+    rendementCourt, bonusCourt, partCourt,
+    rendementMoyen, bonusMoyen, partMoyen,
+    rendementLong, bonusLong, partLong
+  } = p;
   const incomeForDebt = bankIncome > 0 ? bankIncome : income;
   const fraisTotal = price * (fraisNotaire / 100) + fraisAgence + fraisAutres;
   const totalAcquisition = price + fraisTotal;
@@ -214,21 +224,28 @@ function computeScenario(p, apport) {
     ? valeurPlacement(phase2Val, ep3, rendement, phase3Months)
     : phase2Val;
 
-  // Mensualité ressentie : vraie moyenne mois par mois sur toute la durée (nTotal)
+  // Mensualité ressentie : vraie moyenne mois par mois sur toute la durée (nTotal) en combinant les rendements personnalisés
   let totalRessentie = 0;
+  const baseEpC = ep1 * ((partCourt ?? 20) / 100);
+  const baseEpM = ep1 * ((partMoyen ?? 20) / 100);
+  const baseEpL = ep1 * ((partLong ?? 60) / 100);
+  const capLongInit = Math.max(0, epargneTotale - apport - (montantCourt ?? 20000) - (montantMoyen ?? 30000));
+
   for (let m = 1; m <= nTotal; m++) {
     const inPhase3 = m > loanEndMonth;
-    let placem;
-    if (m <= tRA) {
-      placem = valeurPlacement(cashPlace, ep1, rendement, m);
-    } else if (!inPhase3) {
-      placem = valeurPlacement(capitalPhase2, ep2, rendement, m - tRA);
-    } else {
-      placem = valeurPlacement(phase2Val, ep3, rendement, m - loanEndMonth);
-    }
-    const revMensuel = placem * (rendement / 100 / 12);
     const pmt = inPhase3 ? 0 : (m <= tRA ? pmt1.total : pmt2.total);
-    totalRessentie += Math.max(0, pmt - revMensuel);
+    
+    const vC = valeurPlacement(montantCourt ?? 20000, baseEpC, (rendementCourt ?? 1.5) + (bonusCourt ?? 0), m);
+    const gC = vC - (montantCourt ?? 20000) - (baseEpC * m);
+    
+    const vM = valeurPlacement(montantMoyen ?? 30000, baseEpM, (rendementMoyen ?? 2.5) + (bonusMoyen ?? 0), m);
+    const gM = vM - (montantMoyen ?? 30000) - (baseEpM * m);
+    
+    const vL = valeurPlacement(capLongInit, baseEpL, (rendementLong ?? 7.0) + (bonusLong ?? 0), m);
+    const gL = vL - capLongInit - (baseEpL * m);
+    
+    const gainMensuelCombiné = (gC + gM + gL) / m;
+    totalRessentie += Math.max(0, pmt - gainMensuelCombiné);
   }
   const mensualiteRessentie = totalRessentie / nTotal;
 
@@ -321,10 +338,10 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const [prixParcelle, setPrixParcelle] = useState(80000);
   const [moisVente, setMoisVente] = useState(18);
   const [raMode, setRaMode] = useState('mensualite');
-  const [parcelleActive, setParcelleActive] = useState(true);
+  const [parcelleActive, setParcelleActive] = useState(false);
 
-  const [matelas, setMatelas] = useState(20000);
-  const [travaux, setTravaux] = useState(30000);
+  const [matelas, setMatelas] = useState(globalSettings?.rendementDefaults?.matelas ?? 20000);
+  const [travaux, setTravaux] = useState(globalSettings?.rendementDefaults?.travaux ?? 30000);
   const [epargneTotale, setEpargneTotale] = useState(initEpargne);
 
   const initBankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
@@ -332,6 +349,77 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
   const initFraisAutres = (currentResults?.bankFee ?? 1500) + (currentResults?.brokerFee ?? 4100);
   const initMin = Math.ceil(computeMinApportHCSF(initPrice, currentScenario?.notaryRate || 7.276, initFraisAgence, initFraisAutres, initRate, initDuration, initInsurance, initBankIncome, currentResults?.guaranteeRate ?? 0.6345) / 1000) * 1000;
   const [apports, setApports] = useState(distributeApports(initMin, MAX_APPORT));
+
+  // Tableau de bord de rendement - états
+  const rd = globalSettings?.rendementDefaults;
+  const [montantCourt, setMontantCourt] = useState(rd?.matelas ?? 20000);
+  const [rendementCourt, setRendementCourt] = useState(rd?.rendementCourt ?? 1.5);
+  const [bonusCourt, setBonusCourt] = useState(rd?.bonusCourt ?? 0);
+  const [partCourt, setPartCourt] = useState(rd?.partCourt ?? 20);
+
+  const [montantMoyen, setMontantMoyen] = useState(rd?.montantMoyen ?? 30000);
+  const [rendementMoyen, setRendementMoyen] = useState(rd?.rendementMoyen ?? 2.5);
+  const [bonusMoyen, setBonusMoyen] = useState(rd?.bonusMoyen ?? 0);
+  const [partMoyen, setPartMoyen] = useState(rd?.partMoyen ?? 20);
+
+  const [montantLong, setMontantLong] = useState(Math.max(0, initEpargne - initMin - (rd?.matelas ?? 20000) - (rd?.montantMoyen ?? 30000)));
+  const [rendementLong, setRendementLong] = useState(rd?.rendementLong ?? 7.0);
+  const [bonusLong, setBonusLong] = useState(rd?.bonusLong ?? 0);
+  const partLong = Math.max(0, 100 - partCourt - partMoyen);
+  const [chartHorizon, setChartHorizon] = useState(0);
+  const [scenarioRendement, setScenarioRendement] = useState(0);
+
+  // Synchronisation des réglettes de la sidebar avec les compartiments de rendement
+  useEffect(() => {
+    setMontantCourt(matelas);
+  }, [matelas]);
+
+  useEffect(() => {
+    setMontantMoyen(travaux);
+  }, [travaux]);
+
+  // Vases communicants pour répartir l'épargne sans dépasser le total disponible
+  const targetScenarioIdx = scenarioRendement >= 0 ? scenarioRendement : 0;
+  const epargneDispoDepart = Math.max(0, epargneTotale - apports[targetScenarioIdx]);
+  
+  const handleMontantCourtChange = (val) => {
+    let newCourt = val;
+    let exc = (newCourt + montantMoyen + montantLong) - epargneDispoDepart;
+    let nLong = montantLong;
+    let nMoyen = montantMoyen;
+    if (exc > 0) {
+      if (nLong >= exc) { nLong -= exc; exc = 0; }
+      else { exc -= nLong; nLong = 0; if (nMoyen >= exc) { nMoyen -= exc; exc = 0; } else { newCourt -= (exc - nMoyen); nMoyen = 0; } }
+      setMontantLong(nLong); setMontantMoyen(nMoyen);
+    }
+    setMontantCourt(newCourt);
+  };
+
+  const handleMontantMoyenChange = (val) => {
+    let newMoyen = val;
+    let exc = (montantCourt + newMoyen + montantLong) - epargneDispoDepart;
+    let nLong = montantLong;
+    let nCourt = montantCourt;
+    if (exc > 0) {
+      if (nLong >= exc) { nLong -= exc; exc = 0; }
+      else { exc -= nLong; nLong = 0; if (nCourt >= exc) { nCourt -= exc; exc = 0; } else { newMoyen -= (exc - nCourt); nCourt = 0; } }
+      setMontantLong(nLong); setMontantCourt(nCourt);
+    }
+    setMontantMoyen(newMoyen);
+  };
+
+  const handleMontantLongChange = (val) => {
+    let newLong = val;
+    let exc = (montantCourt + montantMoyen + newLong) - epargneDispoDepart;
+    let nMoyen = montantMoyen;
+    let nCourt = montantCourt;
+    if (exc > 0) {
+      if (nMoyen >= exc) { nMoyen -= exc; exc = 0; }
+      else { exc -= nMoyen; nMoyen = 0; if (nCourt >= exc) { nCourt -= exc; exc = 0; } else { newLong -= (exc - nCourt); nCourt = 0; } }
+      setMontantMoyen(nMoyen); setMontantCourt(nCourt);
+    }
+    setMontantLong(newLong);
+  };
 
   const applyParams = (p, newApports) => {
     setPrice(p.price); setFraisNotaire(p.fraisNotaire); setFraisAgence(p.fraisAgence);
@@ -341,6 +429,18 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     setRaMode(p.raMode); setMatelas(p.matelas); setTravaux(p.travaux);
     setEpargneTotale(p.epargneTotale);
     if (p.parcelleActive !== undefined) setParcelleActive(p.parcelleActive);
+    if (p.montantCourt !== undefined) setMontantCourt(p.montantCourt);
+    if (p.montantMoyen !== undefined) setMontantMoyen(p.montantMoyen);
+    if (p.rendementCourt !== undefined) setRendementCourt(p.rendementCourt);
+    if (p.rendementMoyen !== undefined) setRendementMoyen(p.rendementMoyen);
+    if (p.rendementLong !== undefined) setRendementLong(p.rendementLong);
+    if (p.bonusCourt !== undefined) setBonusCourt(p.bonusCourt);
+    if (p.bonusMoyen !== undefined) setBonusMoyen(p.bonusMoyen);
+    if (p.bonusLong !== undefined) setBonusLong(p.bonusLong);
+    if (p.partCourt !== undefined) setPartCourt(p.partCourt);
+    if (p.partMoyen !== undefined) setPartMoyen(p.partMoyen);
+    if (p.chartHorizon !== undefined) setChartHorizon(p.chartHorizon);
+    if (p.scenarioRendement !== undefined) setScenarioRendement(p.scenarioRendement);
     if (newApports) setApports(newApports);
   };
 
@@ -348,16 +448,48 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     if (!currentScenario) return;
     const s = currentScenario;
     const r = currentResults;
+
+    const dashIncome = (currentScenario?.income || 0) + (currentScenario?.income2 || 0);
+    const dashFraisAgence = r?.agencyFees ?? (s.price * ((s.agencyRate || 0) / 100));
+    const dashFraisAutres = (r?.bankFee ?? 1500) + (r?.brokerFee ?? 4100);
+
+    const bankIncome = (globalSettings?.incomeJess || 0) + (globalSettings?.incomeRenaud || 0);
+    const computedOpti = computeMinApportHCSF(
+      s.price || 430000,
+      s.notaryRate || 7.276,
+      dashFraisAgence,
+      dashFraisAutres,
+      s.rate || 3.2,
+      s.duration || 25,
+      s.insurance || 0.36,
+      bankIncome,
+      r?.guaranteeRate ?? 0.6345
+    );
+
+    const lo = s.apport !== undefined ? s.apport : Math.round(computedOpti);
+    const hi = 150000;
+    const range = hi - lo;
+    const newApports = range <= 0
+      ? [lo, lo, lo, Math.max(lo, hi)]
+      : [
+          lo,
+          Math.round((lo + range / 3) / 1000) * 1000,
+          Math.round((lo + 2 * range / 3) / 1000) * 1000,
+          hi,
+        ];
+
     applyParams({
       price: s.price || 430000,
       fraisNotaire: s.notaryRate || 7.276,
-      fraisAgence: r?.agencyFees ?? (s.price * ((s.agencyRate || 0) / 100)),
-      fraisAutres: (r?.bankFee ?? 1500) + (r?.brokerFee ?? 4100),
+      fraisAgence: dashFraisAgence,
+      fraisAutres: dashFraisAutres,
       rate: s.rate || 3.2, duration: s.duration || 25, insurance: s.insurance || 0.36,
-      income: (currentScenario?.income || 0) + (currentScenario?.income2 || 0),
+      income: dashIncome,
       depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux,
       epargneTotale: globalSettings?.epargneTotale || 200000,
-    }, null);
+      parcelleActive, montantCourt, montantMoyen, rendementCourt, rendementMoyen,
+      rendementLong, bonusCourt, bonusMoyen, bonusLong, partCourt, partMoyen, partLong, chartHorizon, scenarioRendement
+    }, newApports);
     setActiveSimId(null);
   };
 
@@ -396,7 +528,12 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       id: Date.now(),
       name: saveInput.name.trim(),
       createdAt: new Date().toISOString(),
-      params: { price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale },
+      params: { 
+        price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, 
+        depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale,
+        parcelleActive, montantCourt, montantMoyen, rendementCourt, rendementMoyen,
+        rendementLong, bonusCourt, bonusMoyen, bonusLong, partCourt, partMoyen, partLong, chartHorizon, scenarioRendement
+      },
       apports: [...apports],
     };
     setSavedSims(prev => {
@@ -477,7 +614,17 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
     matelas, travaux, epargneTotale,
     parcelleActive,
     guaranteeRate: currentResults?.guaranteeRate ?? 0.6345,
-  }), [price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, globalSettings, depensesFamille, rendement, prixParcelle, moisVente, raMode, matelas, travaux, epargneTotale, parcelleActive, currentResults]);
+    montantCourt, montantMoyen,
+    rendementCourt, bonusCourt, partCourt,
+    rendementMoyen, bonusMoyen, partMoyen,
+    rendementLong, bonusLong, partLong,
+  }), [
+    price, fraisNotaire, fraisAgence, fraisAutres, rate, duration, insurance, income, 
+    globalSettings, depensesFamille, rendement, prixParcelle, moisVente, raMode, 
+    matelas, travaux, epargneTotale, parcelleActive, currentResults,
+    montantCourt, montantMoyen, rendementCourt, bonusCourt, partCourt,
+    rendementMoyen, bonusMoyen, partMoyen, rendementLong, bonusLong, partLong
+  ]);
 
   const results = useMemo(() => apports.map((a) => computeScenario(params, a)), [params, apports]);
 
@@ -539,45 +686,74 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       };
     });
 
-    const patrimoineLines = COLORS.map((c, i) => {
-      const r = results[i];
-      const ep1 = Math.max(0, r.epargne1);
-      const ep2 = Math.max(0, r.epargne2);
-      return {
-        label: c.label,
-        data: years.map((y) => {
-          const m = y * 12;
-          if (m <= r.tRA) return valeurPlacement(r.cashPlace, ep1, rendement, m);
-          if (m <= r.loanEndMonth) return valeurPlacement(r.capitalPhase2 ?? (r.cashPlace), ep2, rendement, m - r.tRA);
-          return valeurPlacement(r.phase2Val, r.ep3, rendement, m - r.loanEndMonth);
-        }),
-        borderColor: c.hex,
-        backgroundColor: c.hex + '18',
+    const patrimoineLines = [
+      // Courbes du Tableau de bord de Rendement
+      {
+        label: 'Court terme (Rendement)',
+        data: years.map((y) => valeurPlacement(montantCourt, Math.max(0, results[0].epargne1) * (partCourt / 100), rendementCourt + bonusCourt, y * 12)),
+        borderColor: '#0284c7', // sky-600
+        backgroundColor: 'transparent',
         borderWidth: 2,
+        borderDash: [3, 3],
         ...pointStyle,
-        pointBackgroundColor: c.hex,
+        pointBackgroundColor: '#0284c7',
         tension: 0.3,
-        fill: true,
-      };
-    });
+        fill: false,
+      },
+      {
+        label: 'Moyen terme (Rendement)',
+        data: years.map((y) => valeurPlacement(montantMoyen, Math.max(0, results[0].epargne1) * (partMoyen / 100), rendementMoyen + bonusMoyen, y * 12)),
+        borderColor: '#059669', // emerald-600
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        ...pointStyle,
+        pointBackgroundColor: '#059669',
+        tension: 0.3,
+        fill: false,
+      },
+      // Les 4 courbes Long terme (une par scénario) mises en avant en ligne continue
+      ...COLORS.map((c, i) => {
+        const mLong = Math.max(0, epargneTotale - apports[i] - montantCourt - montantMoyen);
+        const epMensuelle = Math.max(0, results[i].epargne1) * (partLong / 100);
+        return {
+          label: `Long terme (${c.label})`,
+          data: years.map((y) => valeurPlacement(mLong, epMensuelle, rendementLong + bonusLong, y * 12)),
+          borderColor: c.hex,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          ...pointStyle,
+          pointRadius: 2,
+          pointBackgroundColor: c.hex,
+          tension: 0.3,
+          fill: false,
+        };
+      })
+    ];
 
     const mensualiteRessentieLines = COLORS.map((c, i) => {
       const r = results[i];
       const ep1 = Math.max(0, r.epargne1);
-      const ep2 = Math.max(0, r.epargne2);
+      const baseEpC = ep1 * (partCourt / 100);
+      const baseEpM = ep1 * (partMoyen / 100);
+      const baseEpL = ep1 * (partLong / 100);
+      const capLongInit = Math.max(0, epargneTotale - apports[i] - montantCourt - montantMoyen);
+
       const rawData = months.map((m) => {
         const inPhase3 = m > r.loanEndMonth;
-        let placem;
-        if (m <= r.tRA) {
-          placem = valeurPlacement(r.cashPlace, ep1, rendement, m);
-        } else if (!inPhase3) {
-          placem = valeurPlacement(r.capitalPhase2, ep2, rendement, m - r.tRA);
-        } else {
-          placem = valeurPlacement(r.phase2Val, r.ep3, rendement, m - r.loanEndMonth);
-        }
-        const revPlacement = placem * (rendement / 100 / 12);
         const pmt = inPhase3 ? 0 : (m <= r.tRA ? r.pmt1.total : r.pmt2.total);
-        return Math.max(0, pmt - revPlacement);
+        
+        const vC = valeurPlacement(montantCourt, baseEpC, rendementCourt + bonusCourt, m);
+        const gC = vC - montantCourt - (baseEpC * m);
+        
+        const vM = valeurPlacement(montantMoyen, baseEpM, rendementMoyen + bonusMoyen, m);
+        const gM = vM - montantMoyen - (baseEpM * m);
+        
+        const vL = valeurPlacement(capLongInit, baseEpL, rendementLong + bonusLong, m);
+        const gL = vL - capLongInit - (baseEpL * m);
+        
+        const gainMensuelCombiné = m > 0 ? (gC + gM + gL) / m : 0;
+        return Math.max(0, pmt - gainMensuelCombiné);
       });
       const subData = monthsSubsampled.map((m) => rawData[m]);
       return {
@@ -656,11 +832,25 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
       couts: {
         labels: ['💸 Facture banque', '📈 Épargne finale', '✅ Gain net'],
         datasets: [
-          ...COLORS.map((c, i) => ({
-            label: c.label,
-            data: [results[i].coutInteretsAssurance, results[i].valPatrimoineFinancier, results[i].valPatrimoineFinancier - results[i].coutInteretsAssurance],
-            backgroundColor: c.hex + 'cc', borderRadius: 6,
-          })),
+          ...COLORS.map((c, i) => {
+            const r = results[i];
+            const ep1 = Math.max(0, r.epargne1);
+            const baseEpC = ep1 * (partCourt / 100);
+            const baseEpM = ep1 * (partMoyen / 100);
+            const baseEpL = ep1 * (partLong / 100);
+            const mLong = Math.max(0, epargneTotale - apports[i] - montantCourt - montantMoyen);
+            const m = duration * 12;
+            const vC = valeurPlacement(montantCourt, baseEpC, rendementCourt + bonusCourt, m);
+            const vM = valeurPlacement(montantMoyen, baseEpM, rendementMoyen + bonusMoyen, m);
+            const vL = valeurPlacement(mLong, baseEpL, rendementLong + bonusLong, m);
+            const valPatrimoineCombiné = vC + vM + vL;
+
+            return {
+              label: c.label,
+              data: [r.coutInteretsAssurance, valPatrimoineCombiné, valPatrimoineCombiné - r.coutInteretsAssurance],
+              backgroundColor: c.hex + 'cc', borderRadius: 6,
+            };
+          }),
           ...(compareSimResults ? COLORS_PASTEL.map((c, i) => ({
             label: `${COLORS[i].label} (réf)`,
             data: [compareSimResults[i].coutInteretsAssurance, compareSimResults[i].valPatrimoineFinancier, compareSimResults[i].valPatrimoineFinancier - compareSimResults[i].coutInteretsAssurance],
@@ -854,6 +1044,590 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Tableau de bord de rendement */}
+          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 space-y-6">
+            <div className="flex flex-col gap-4 border-b border-slate-50 pb-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Tableau de Bord de Rendement
+                  </h3>
+                  <p className="text-[11px] text-slate-500 leading-tight mt-1">
+                    Gérez la répartition de vos capitaux. Le <strong className="text-violet-600">Long Terme</strong> absorbe le reliquat d'épargne.
+                  </p>
+                </div>
+
+                {/* Sélecteur de scénario ciblé */}
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/60 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Scénario :</span>
+                  <select
+                    value={scenarioRendement}
+                    onChange={(e) => setScenarioRendement(Number(e.target.value))}
+                    className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    <option value={-1}>Tous en parallèle</option>
+                    {results.map((r, i) => (
+                      <option key={i} value={i}>
+                        {COLORS[i].label} ({fmt(apports[i])} €)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Panel unifié : Capital Initial & Répartition de l'Épargne Mensuelle */}
+              <div className="bg-white/80 p-4 rounded-2xl border border-slate-100 shadow-xs space-y-3 pt-3">
+                <div className="grid grid-cols-1 gap-3.5">
+                  {/* Jauge 1 : Capital de départ */}
+                  {(() => {
+                    const pctC = epargneDispoDepart > 0 ? Math.round((montantCourt / epargneDispoDepart) * 100) : 0;
+                    const pctM = epargneDispoDepart > 0 ? Math.round((montantMoyen / epargneDispoDepart) * 100) : 0;
+                    const pctL = Math.max(0, 100 - pctC - pctM);
+                    const soldeL = Math.max(0, epargneDispoDepart - montantCourt - montantMoyen);
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-[10px] font-black">
+                          <span className="text-slate-500 uppercase tracking-wider">
+                            Épargne Restante Placée {scenarioRendement >= 0 ? `(${COLORS[scenarioRendement].label})` : '(Scénario A)'}
+                            <span className="text-slate-400 font-normal normal-case ml-1 tracking-normal">
+                              (sur {fmt(epargneTotale)} € total)
+                            </span>
+                          </span>
+                          <span className={montantCourt + montantMoyen > epargneDispoDepart ? 'text-rose-600' : 'text-slate-700'}>
+                            {fmt(epargneDispoDepart)} € max
+                          </span>
+                        </div>
+                        <div className="h-7 bg-slate-100 rounded-xl overflow-hidden flex shadow-inner whitespace-nowrap select-none">
+                          <div className="bg-sky-500 flex items-center justify-center text-white transition-all duration-300 px-1 overflow-hidden" style={{ width: `${epargneDispoDepart > 0 ? Math.min(100, (montantCourt / epargneDispoDepart) * 100) : 0}%` }} title={`Court: ${fmt(montantCourt)} € (${pctC}%)`}>
+                            {pctC > 8 && (
+                              <span className="inline-flex items-baseline gap-1">
+                                <span className="text-[11px] font-black">{fmt(montantCourt)} €</span>
+                                <span className="text-[9px] text-white/90 font-bold">({pctC}%)</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="bg-emerald-500 flex items-center justify-center text-white transition-all duration-300 px-1 overflow-hidden" style={{ width: `${epargneDispoDepart > 0 ? Math.min(100, (montantMoyen / epargneDispoDepart) * 100) : 0}%` }} title={`Moyen: ${fmt(montantMoyen)} € (${pctM}%)`}>
+                            {pctM > 8 && (
+                              <span className="inline-flex items-baseline gap-1">
+                                <span className="text-[11px] font-black">{fmt(montantMoyen)} €</span>
+                                <span className="text-[9px] text-white/90 font-bold">({pctM}%)</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="bg-violet-500 flex items-center justify-center text-white transition-all duration-300 px-1 overflow-hidden" style={{ flex: 1 }} title={`Long: ${fmt(soldeL)} € (${pctL}%)`}>
+                            {pctL > 8 && (
+                              <span className="inline-flex items-baseline gap-1">
+                                <span className="text-[11px] font-black">{fmt(soldeL)} €</span>
+                                <span className="text-[9px] text-white/90 font-bold">({pctL}%)</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Jauge 2 : Répartition Épargne Mensuelle */}
+                  {(() => {
+                    const baseAmount = Math.max(0, scenarioRendement >= 0 
+                      ? (results[scenarioRendement]?.epargne1 ?? 0) 
+                      : (results[0]?.epargne1 ?? 0));
+                    const valC = Math.round(baseAmount * partCourt / 100);
+                    const valM = Math.round(baseAmount * partMoyen / 100);
+                    const valL = Math.round(baseAmount * partLong / 100);
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-[10px] font-black">
+                          <span className="text-slate-500 uppercase tracking-wider">
+                            Épargne Mensuelle (100% Garanti)
+                          </span>
+                          <span className="text-slate-700">
+                            Base : {fmt(baseAmount)} €/m
+                          </span>
+                        </div>
+                        <div className="h-7 bg-slate-100 rounded-xl overflow-hidden flex shadow-inner select-none whitespace-nowrap">
+                          <div className="bg-sky-500 flex items-center justify-center text-white transition-all duration-300 px-1 overflow-hidden" style={{ width: `${partCourt}%` }} title={`Court terme : ${fmt(valC)} € (${partCourt}%)`}>
+                            {partCourt > 8 && (
+                              <span className="inline-flex items-baseline gap-1">
+                                <span className="text-[11px] font-black">{fmt(valC)} €</span>
+                                <span className="text-[9px] text-white/90 font-bold">({partCourt}%)</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="bg-emerald-500 flex items-center justify-center text-white transition-all duration-300 px-1 overflow-hidden" style={{ width: `${partMoyen}%` }} title={`Moyen terme : ${fmt(valM)} € (${partMoyen}%)`}>
+                            {partMoyen > 8 && (
+                              <span className="inline-flex items-baseline gap-1">
+                                <span className="text-[11px] font-black">{fmt(valM)} €</span>
+                                <span className="text-[9px] text-white/90 font-bold">({partMoyen}%)</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="bg-violet-500 flex items-center justify-center text-white transition-all duration-300 px-1 overflow-hidden" style={{ flex: 1 }} title={`Long terme : ${fmt(valL)} € (${partLong}%)`}>
+                            {partLong > 8 && (
+                              <span className="inline-flex items-baseline gap-1">
+                                <span className="text-[11px] font-black">{fmt(valL)} €</span>
+                                <span className="text-[9px] text-white/90 font-bold">({partLong}%)</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-50 text-[9px]">
+                  {montantCourt + montantMoyen > epargneDispoDepart ? (
+                    <span className="font-bold text-rose-600 flex items-center gap-1 bg-rose-50 px-2 py-0.5 rounded">
+                      ⚠️ Dépassement du capital initial disponible.
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 italic">
+                      * Répartition à titre indicatif. Configuration ajustable dans la barre latérale.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tableau de synthèse et Graphique Unifié */}
+            <div className="space-y-6">
+              {/* Tableau des informations de placement */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-100 shadow-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/75 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      <th className="p-4 w-1/3">Section / Horizon</th>
+                      <th className="p-4 w-1/3">Configuration Allouée</th>
+                      <th className="p-4 w-1/3">Résultats Finaux (Fin du prêt)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 text-[11px]">
+                    {(() => {
+                      const baseAmount = Math.max(0, scenarioRendement >= 0 
+                        ? (results[scenarioRendement]?.epargne1 ?? 0) 
+                        : (results[0]?.epargne1 ?? 0));
+                      
+                      return (
+                        <>
+                          {/* Ligne Court Terme */}
+                          <tr className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 align-top">
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-xs text-sky-600 uppercase tracking-wider">Court Terme</span>
+                                <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100 shrink-0">
+                                  {(rendementCourt + bonusCourt).toFixed(2)} % net
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal">Matelas / Liquidités (ex: Livret A)</p>
+                            </td>
+                            <td className="p-4 align-top space-y-1">
+                              <div>Capital alloué : <strong className="text-slate-700">{fmt(montantCourt)} €</strong></div>
+                              <div className="text-slate-500">
+                                Ajout mensuel : <strong className="text-slate-700">{fmt(baseAmount * partCourt / 100)} €/m</strong> ({partCourt} %)
+                              </div>
+                            </td>
+                            <td className="p-4 align-top">
+                              {(() => {
+                                const epMens = baseAmount * partCourt / 100;
+                                const finalCap = valeurPlacement(montantCourt, epMens, rendementCourt + bonusCourt, duration * 12);
+                                const gainNet = finalCap - montantCourt - (epMens * duration * 12);
+                                const gainMensuelMoyen = gainNet / (duration * 12);
+                                return (
+                                  <div className="flex flex-col gap-1.5 bg-slate-50/40 p-2.5 rounded-xl border border-slate-100/80">
+                                    <div className="flex items-baseline justify-between border-b border-slate-100/60 pb-1">
+                                      <span className="text-[9px] font-black text-slate-400 uppercase">Capital Final</span>
+                                      <span className="text-xs font-black text-slate-800 whitespace-nowrap">{fmtK(finalCap)}</span>
+                                    </div>
+                                    <div className="flex items-baseline justify-between pt-0.5">
+                                      <span className="text-[9px] font-black text-slate-400 uppercase">Gain Net</span>
+                                      <div className="flex items-baseline gap-1.5">
+                                        <span className="text-xs font-black text-sky-600 whitespace-nowrap">+{fmtK(gainNet)}</span>
+                                        <span className="text-[9px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded border border-sky-100/50 whitespace-nowrap">
+                                          soit +{fmt(gainMensuelMoyen)} €/m
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                          </tr>
+
+                          {/* Ligne Moyen Terme */}
+                          <tr className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 align-top">
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-xs text-emerald-600 uppercase tracking-wider">Moyen Terme</span>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 shrink-0">
+                                  {(rendementMoyen + bonusMoyen).toFixed(2)} % net
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal">Projets à horizon 5-8 ans</p>
+                            </td>
+                            <td className="p-4 align-top space-y-1">
+                              <div>Capital alloué : <strong className="text-slate-700">{fmt(montantMoyen)} €</strong></div>
+                              <div className="text-slate-500">
+                                Ajout mensuel : <strong className="text-slate-700">{fmt(baseAmount * partMoyen / 100)} €/m</strong> ({partMoyen} %)
+                              </div>
+                            </td>
+                            <td className="p-4 align-top">
+                              {(() => {
+                                const epMens = baseAmount * partMoyen / 100;
+                                const finalCap = valeurPlacement(montantMoyen, epMens, rendementMoyen + bonusMoyen, duration * 12);
+                                const gainNet = finalCap - montantMoyen - (epMens * duration * 12);
+                                const gainMensuelMoyen = gainNet / (duration * 12);
+                                return (
+                                  <div className="flex flex-col gap-1.5 bg-slate-50/40 p-2.5 rounded-xl border border-slate-100/80">
+                                    <div className="flex items-baseline justify-between border-b border-slate-100/60 pb-1">
+                                      <span className="text-[9px] font-black text-slate-400 uppercase">Capital Final</span>
+                                      <span className="text-xs font-black text-slate-800 whitespace-nowrap">{fmtK(finalCap)}</span>
+                                    </div>
+                                    <div className="flex items-baseline justify-between pt-0.5">
+                                      <span className="text-[9px] font-black text-slate-400 uppercase">Gain Net</span>
+                                      <div className="flex items-baseline gap-1.5">
+                                        <span className="text-xs font-black text-emerald-600 whitespace-nowrap">+{fmtK(gainNet)}</span>
+                                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-100/50 whitespace-nowrap">
+                                          soit +{fmt(gainMensuelMoyen)} €/m
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                          </tr>
+
+                          {/* Ligne Long Terme */}
+                          <tr className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 align-top">
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-xs text-violet-600 uppercase tracking-wider">Long Terme</span>
+                                <span className="text-[10px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100 shrink-0">
+                                  {(rendementLong + bonusLong).toFixed(2)} % net
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold mt-1 leading-normal">Capitalisation / Retraite</p>
+                            </td>
+                            <td className="p-4 align-top space-y-1">
+                              <div>
+                                Capital initial : <strong className="text-slate-700">
+                                  {scenarioRendement >= 0 
+                                    ? `${fmt(Math.max(0, epargneTotale - apports[scenarioRendement] - montantCourt - montantMoyen))} €` 
+                                    : 'Solde auto par Scénario'}
+                                </strong>
+                              </div>
+                              <div className="text-slate-500">
+                                Ajout mensuel : <strong className="text-slate-700">{partLong} %</strong> de l'épargne propre
+                              </div>
+                            </td>
+                            <td className="p-4 align-top">
+                              {scenarioRendement >= 0 ? (
+                                (() => {
+                                  const rObj = results[scenarioRendement];
+                                  const c = COLORS[scenarioRendement];
+                                  const mLong = Math.max(0, epargneTotale - apports[scenarioRendement] - montantCourt - montantMoyen);
+                                  const epMens = Math.max(0, rObj?.epargne1 ?? 0) * partLong / 100;
+                                  const finalCap = valeurPlacement(mLong, epMens, rendementLong + bonusLong, duration * 12);
+                                  const gainNet = finalCap - mLong - (epMens * duration * 12);
+                                  const gainMensuelMoyen = gainNet / (duration * 12);
+                                  return (
+                                    <div className="flex flex-col gap-1.5 bg-violet-50/50 p-3 rounded-xl border border-violet-100 w-full">
+                                      <div className="flex items-center justify-between border-b border-violet-100/80 pb-1.5">
+                                        <span className="font-bold text-xs" style={{ color: c.hex }}>{c.label}</span>
+                                        <span className="text-[10px] font-bold text-violet-700 bg-white px-2 py-0.5 rounded-md shadow-xs border border-violet-100 whitespace-nowrap">
+                                          soit +{fmt(gainMensuelMoyen)} €/m nets
+                                        </span>
+                                      </div>
+                                      <div className="flex items-baseline justify-between pt-0.5">
+                                        <span className="text-[10px] text-slate-500">Capital final :</span>
+                                        <span className="font-black text-slate-800 text-xs whitespace-nowrap">{fmtK(finalCap)}</span>
+                                      </div>
+                                      <div className="flex items-baseline justify-between">
+                                        <span className="text-[10px] text-slate-500">Gain passif :</span>
+                                        <span className="text-emerald-600 font-bold text-xs whitespace-nowrap">+{fmtK(gainNet)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                <div className="space-y-1.5">
+                                  <span className="text-[9px] font-black text-slate-400 uppercase block">Par Scénario d'apport :</span>
+                                  <div className="flex flex-col gap-1 text-[10px]">
+                                    {results.map((rObj, i) => {
+                                      const c = COLORS[i];
+                                      const mLong = Math.max(0, epargneTotale - apports[i] - montantCourt - montantMoyen);
+                                      const epMens = Math.max(0, rObj.epargne1) * partLong / 100;
+                                      const finalCap = valeurPlacement(mLong, epMens, rendementLong + bonusLong, duration * 12);
+                                      const gainNet = finalCap - mLong - (epMens * duration * 12);
+                                      const gainMensuelMoyen = gainNet / (duration * 12);
+                                      return (
+                                        <div key={i} className="flex items-center justify-between gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100/80">
+                                          <span className="font-bold whitespace-nowrap" style={{ color: c.hex }}>{c.label}</span>
+                                          <div className="flex items-baseline gap-2">
+                                            <span className="font-black text-slate-800 whitespace-nowrap">{fmtK(finalCap)}</span>
+                                            <span className="text-emerald-600 font-bold whitespace-nowrap">+{fmtK(gainNet)}</span>
+                                            <span className="text-[9px] font-bold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200/60 whitespace-nowrap">
+                                              +{fmt(gainMensuelMoyen)} €/m
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        </>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Graphique Unifié de croissance */}
+              {(() => {
+                const effHorizon = chartHorizon > 0 ? chartHorizon : duration;
+                const yearsArr = Array.from({ length: effHorizon + 1 }, (_, i) => i);
+                
+                const baseAmount = Math.max(0, scenarioRendement >= 0 
+                  ? (results[scenarioRendement]?.epargne1 ?? 0) 
+                  : (results[0]?.epargne1 ?? 0));
+
+                // Datasets
+                const epMensCourt = baseAmount * (partCourt / 100);
+                const dataCourt = yearsArr.map((y) => valeurPlacement(montantCourt, epMensCourt, rendementCourt + bonusCourt, y * 12));
+
+                const epMensMoyen = baseAmount * (partMoyen / 100);
+                const dataMoyen = yearsArr.map((y) => valeurPlacement(montantMoyen, epMensMoyen, rendementMoyen + bonusMoyen, y * 12));
+
+                let datasetsLong = [];
+                if (scenarioRendement >= 0) {
+                  const rObj = results[scenarioRendement];
+                  const c = COLORS[scenarioRendement];
+                  const mLong = Math.max(0, epargneTotale - apports[scenarioRendement] - montantCourt - montantMoyen);
+                  const epMensLong = Math.max(0, rObj?.epargne1 ?? 0) * (partLong / 100);
+                  datasetsLong = [{
+                    label: `Long Terme (Scénario ${c.label})`,
+                    data: yearsArr.map((y) => valeurPlacement(mLong, epMensLong, rendementLong + bonusLong, y * 12)),
+                    borderColor: '#8b5cf6', // Violet affirmé
+                    backgroundColor: '#8b5cf610',
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    fill: true,
+                    tension: 0.3
+                  }];
+                } else {
+                  datasetsLong = results.map((rObj, i) => {
+                    const c = COLORS[i];
+                    const mLong = Math.max(0, epargneTotale - apports[i] - montantCourt - montantMoyen);
+                    const epMensLong = Math.max(0, rObj.epargne1) * (partLong / 100);
+                    return {
+                      label: `Long Terme (${c.label})`,
+                      data: yearsArr.map((y) => valeurPlacement(mLong, epMensLong, rendementLong + bonusLong, y * 12)),
+                      borderColor: c.hex,
+                      backgroundColor: 'transparent',
+                      borderWidth: 2,
+                      pointRadius: 0,
+                      pointHoverRadius: 4,
+                      tension: 0.3
+                    };
+                  });
+                }
+
+                const unifiedChartData = {
+                  labels: yearsArr.map((y) => `${y} ans`),
+                  datasets: [
+                    {
+                      label: 'Court Terme',
+                      data: dataCourt,
+                      borderColor: '#0284c7',
+                      backgroundColor: '#0284c710',
+                      borderWidth: 2.5,
+                      pointRadius: 0,
+                      pointHoverRadius: 5,
+                      fill: true,
+                      tension: 0.3
+                    },
+                    {
+                      label: 'Moyen Terme',
+                      data: dataMoyen,
+                      borderColor: '#059669',
+                      backgroundColor: '#05966910',
+                      borderWidth: 2.5,
+                      pointRadius: 0,
+                      pointHoverRadius: 5,
+                      fill: true,
+                      tension: 0.3
+                    },
+                    ...datasetsLong
+                  ]
+                };
+
+                const horizons = [
+                  { label: '10 ans', val: 10 },
+                  { label: '15 ans', val: 15 },
+                  { label: '20 ans', val: 20 },
+                  { label: `Durée prêt (${duration} ans)`, val: 0 },
+                ];
+
+                return (
+                  <div className="bg-slate-50/30 rounded-2xl border border-slate-100 p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100/80 pb-3">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                        Courbes unifiées de croissance
+                      </span>
+                      
+                      {/* Sélecteur d'horizon temporel */}
+                      <div className="flex items-center flex-wrap gap-1 bg-slate-100/75 p-1 rounded-xl border border-slate-200/60 self-start sm:self-auto">
+                        {horizons.map((h) => {
+                          const isActive = chartHorizon === h.val;
+                          return (
+                            <button
+                              key={h.label}
+                              onClick={() => setChartHorizon(h.val)}
+                              className={cn(
+                                'px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all',
+                                isActive 
+                                  ? 'bg-white text-slate-800 shadow-xs' 
+                                  : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+                              )}
+                            >
+                              {h.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="h-80 w-full pt-1">
+                      <Line
+                        data={unifiedChartData}
+                        options={{
+                          responsive: true, maintainAspectRatio: false,
+                          interaction: {
+                            mode: 'index',
+                            intersect: false,
+                          },
+                          plugins: { 
+                            legend: { 
+                              display: true, 
+                              position: 'top', 
+                              labels: { usePointStyle: true, boxWidth: 6, font: { size: 10, weight: 'bold' } } 
+                            }, 
+                            tooltip: { 
+                              enabled: true,
+                              padding: 12,
+                              titleFont: { size: 11, weight: 'bold' },
+                              bodyFont: { size: 11 },
+                              bodySpacing: 4,
+                              callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)} €` } 
+                            } 
+                          },
+                          scales: { 
+                            x: { display: true, grid: { display: false }, ticks: { font: { size: 9 }, color: '#94a3b8' } }, 
+                            y: { display: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 }, color: '#94a3b8', callback: (v) => fmtK(v) } } 
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Tableau du Gain Net Mensuel Année par Année */}
+              {(() => {
+                const totalYears = duration;
+                const yearsList = Array.from({ length: totalYears }, (_, i) => i + 1);
+
+                const baseAmount = Math.max(0, scenarioRendement >= 0 
+                  ? (results[scenarioRendement]?.epargne1 ?? 0) 
+                  : (results[0]?.epargne1 ?? 0));
+
+                const epMensCourt = baseAmount * (partCourt / 100);
+                const epMensMoyen = baseAmount * (partMoyen / 100);
+
+                const targetScenIndex = scenarioRendement >= 0 ? scenarioRendement : 0;
+                const rObjLong = results[targetScenIndex];
+                const cLong = COLORS[targetScenIndex];
+                const mLong = Math.max(0, epargneTotale - apports[targetScenIndex] - montantCourt - montantMoyen);
+                const epMensLong = Math.max(0, rObjLong?.epargne1 ?? 0) * (partLong / 100);
+
+                return (
+                  <div className="bg-slate-50/40 rounded-2xl border border-slate-100 overflow-hidden">
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                        Évolution du Gain Net Passif Mensuel (Année par Année)
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded-md border border-slate-200/60">
+                        Long terme basé sur : <strong className="text-violet-600">Scénario {cLong.label}</strong>
+                      </span>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-wider z-10 shadow-2xs">
+                          <tr>
+                            <th className="py-2.5 px-4 text-center w-16">Année</th>
+                            <th className="py-2.5 px-3 text-sky-600">Court Terme</th>
+                            <th className="py-2.5 px-3 text-emerald-600">Moyen Terme</th>
+                            <th className="py-2.5 px-3 text-violet-600">Long Terme</th>
+                            <th className="py-2.5 px-4 text-right text-slate-700">Cumulé Global</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100/60 text-[11px] font-bold">
+                          {yearsList.map((y) => {
+                            const m = y * 12;
+
+                            // Court
+                            const vC = valeurPlacement(montantCourt, epMensCourt, rendementCourt + bonusCourt, m);
+                            const gC = vC - montantCourt - (epMensCourt * m);
+                            const gmC = gC / m;
+
+                            // Moyen
+                            const vM = valeurPlacement(montantMoyen, epMensMoyen, rendementMoyen + bonusMoyen, m);
+                            const gM = vM - montantMoyen - (epMensMoyen * m);
+                            const gmM = gM / m;
+
+                            // Long
+                            const vL = valeurPlacement(mLong, epMensLong, rendementLong + bonusLong, m);
+                            const gL = vL - mLong - (epMensLong * m);
+                            const gmL = gL / m;
+
+                            // Total
+                            const totalMensuel = gmC + gmM + gmL;
+
+                            return (
+                              <tr key={y} className="hover:bg-white transition-colors">
+                                <td className="py-2 px-4 text-center font-black text-slate-500 bg-slate-50/50 text-[10px]">
+                                  A{y}
+                                </td>
+                                <td className="py-2 px-3 text-sky-600 font-bold">
+                                  +{fmt(gmC)} €/m
+                                </td>
+                                <td className="py-2 px-3 text-emerald-600 font-bold">
+                                  +{fmt(gmM)} €/m
+                                </td>
+                                <td className="py-2 px-3 text-violet-600 font-bold">
+                                  +{fmt(gmL)} €/m
+                                </td>
+                                <td className="py-2 px-4 text-right font-black text-slate-800 bg-emerald-50/20">
+                                  +{fmt(totalMensuel)} €/m
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -1140,12 +1914,88 @@ export default function AnalysePage({ currentScenario, globalSettings, currentRe
           </div>
         </section>
 
-        {/* Patrimoine Initial */}
+        {/* Configuration Rendement (Patrimoine & Taux) */}
         <section className="space-y-5 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-          <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Patrimoine Initial</h3>
-          <Slider label="Épargne totale" value={epargneTotale} min={0} max={400000} step={5000} onChange={setEpargneTotale} format={(v) => `${fmt(v)} €`} isDark />
-          <Slider label="Matelas de sécurité" value={matelas} min={0} max={50000} step={1000} onChange={setMatelas} format={(v) => `${fmt(v)} €`} isDark />
-          <Slider label="Provision travaux" value={travaux} min={0} max={80000} step={1000} onChange={setTravaux} format={(v) => `${fmt(v)} €`} isDark />
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+              Configuration Rendement
+            </h3>
+            <button
+              onClick={() => {
+                setEpargneTotale(globalSettings?.epargneTotale ?? 200000);
+                setMatelas(rd?.matelas ?? 20000);
+                setTravaux(rd?.travaux ?? 30000);
+                setRendementCourt(rd?.rendementCourt ?? 1.5); setBonusCourt(rd?.bonusCourt ?? 0); setPartCourt(rd?.partCourt ?? 20);
+                setRendementMoyen(rd?.rendementMoyen ?? 2.5); setBonusMoyen(rd?.bonusMoyen ?? 0); setPartMoyen(rd?.partMoyen ?? 20); handleMontantMoyenChange(rd?.montantMoyen ?? 30000);
+                setRendementLong(rd?.rendementLong ?? 7.0); setBonusLong(rd?.bonusLong ?? 0);
+              }}
+              className="text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white px-2 py-1 rounded-lg transition-all border border-emerald-500/20"
+              title="Réinitialiser tous les paramètres de rendement par défaut"
+            >
+              ↺ Reset Global
+            </button>
+          </div>
+
+          {/* Patrimoine de départ */}
+          <div className="space-y-4 pt-1">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">1 · Patrimoine Initial</p>
+              <button 
+                onClick={() => { setEpargneTotale(globalSettings?.epargneTotale ?? 200000); setMatelas(rd?.matelas ?? 20000); setTravaux(rd?.travaux ?? 30000); }} 
+                className="text-slate-600 hover:text-emerald-400 text-[10px] p-0.5 transition-colors" 
+                title="Réinitialiser le Patrimoine Initial par défaut"
+              >↺</button>
+            </div>
+            <Slider label="Épargne totale" value={epargneTotale} min={0} max={400000} step={5000} onChange={setEpargneTotale} format={(v) => `${fmt(v)} €`} isDark />
+            <Slider label="Matelas de sécurité (Court)" value={matelas} min={0} max={50000} step={1000} onChange={setMatelas} format={(v) => `${fmt(v)} €`} isDark />
+            <Slider label="Provision travaux" value={travaux} min={0} max={80000} step={1000} onChange={setTravaux} format={(v) => `${fmt(v)} €`} isDark />
+          </div>
+
+          {/* Configuration par Section */}
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+              <p className="text-[9px] font-black text-sky-400 uppercase tracking-wider">2 · Court Terme</p>
+              <button 
+                onClick={() => { setRendementCourt(rd?.rendementCourt ?? 1.5); setBonusCourt(rd?.bonusCourt ?? 0); setPartCourt(rd?.partCourt ?? 20); }} 
+                className="text-slate-600 hover:text-sky-400 text-[10px] p-0.5 transition-colors" 
+                title="Réinitialiser les paramètres Court Terme par défaut"
+              >↺</button>
+            </div>
+            <Slider label="Rendement (% net/an)" value={rendementCourt} min={0} max={10} step={0.1} onChange={setRendementCourt} format={(v) => `${v.toFixed(1)} %`} isDark />
+            <Slider label="Bonus Rendement" value={bonusCourt} min={0} max={5} step={0.1} onChange={setBonusCourt} format={(v) => `+${v.toFixed(1)} %`} isDark />
+            <Slider label="% Épargne Mensuelle" value={partCourt} min={0} max={100} step={5} onChange={setPartCourt} format={(v) => `${v} %`} sub={`→ ${fmt(Math.max(0, results[0]?.epargne1 ?? 0) * (partCourt / 100))} €/m`} isDark />
+
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1 pt-2">
+              <p className="text-[9px] font-black text-emerald-400 uppercase tracking-wider">3 · Moyen Terme</p>
+              <button 
+                onClick={() => { setRendementMoyen(rd?.rendementMoyen ?? 2.5); setBonusMoyen(rd?.bonusMoyen ?? 0); setPartMoyen(rd?.partMoyen ?? 20); handleMontantMoyenChange(rd?.montantMoyen ?? 30000); }} 
+                className="text-slate-600 hover:text-emerald-400 text-[10px] p-0.5 transition-colors" 
+                title="Réinitialiser les paramètres Moyen Terme par défaut"
+              >↺</button>
+            </div>
+            <Slider label="Capital Alloué" value={montantMoyen} min={0} max={Math.max(montantMoyen, epargneDispoDepart)} step={1000} onChange={handleMontantMoyenChange} format={(v) => `${fmt(v)} €`} isDark />
+            <Slider label="Rendement (% net/an)" value={rendementMoyen} min={0} max={10} step={0.1} onChange={setRendementMoyen} format={(v) => `${v.toFixed(1)} %`} isDark />
+            <Slider label="Bonus Rendement" value={bonusMoyen} min={0} max={5} step={0.1} onChange={setBonusMoyen} format={(v) => `+${v.toFixed(1)} %`} isDark />
+            <Slider label="% Épargne Mensuelle" value={partMoyen} min={0} max={100} step={5} onChange={setPartMoyen} format={(v) => `${v} %`} sub={`→ ${fmt(Math.max(0, results[0]?.epargne1 ?? 0) * (partMoyen / 100))} €/m`} isDark />
+
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1 pt-2">
+              <p className="text-[9px] font-black text-violet-400 uppercase tracking-wider">4 · Long Terme</p>
+              <button 
+                onClick={() => { setRendementLong(rd?.rendementLong ?? 7.0); setBonusLong(rd?.bonusLong ?? 0); }} 
+                className="text-slate-600 hover:text-violet-400 text-[10px] p-0.5 transition-colors" 
+                title="Réinitialiser les paramètres Long Terme par défaut"
+              >↺</button>
+            </div>
+            <Slider label="Rendement (% net/an)" value={rendementLong} min={0} max={10} step={0.1} onChange={setRendementLong} format={(v) => `${v.toFixed(1)} %`} isDark />
+            <Slider label="Bonus Rendement" value={bonusLong} min={0} max={5} step={0.1} onChange={setBonusLong} format={(v) => `+${v.toFixed(1)} %`} isDark />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                <span>% Épargne Mensuelle</span>
+                <span className="text-violet-400 font-black">{partLong} %</span>
+              </div>
+              <p className="text-[9px] text-slate-500">S'adapte automatiquement par scénario</p>
+            </div>
+          </div>
         </section>
       </div>
     </aside>
