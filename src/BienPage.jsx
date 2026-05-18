@@ -62,10 +62,10 @@ const BienPage = () => {
         setCustomColumns(cols);
         setColumnOrder(data.columnOrder || []);
         
-        // Initialiser les actifs comme ouverts, les abandonnés comme fermés par défaut
+        // Initialiser tous les biens comme réduits par défaut au chargement
         const initialExpanded = {};
         (data.biens || []).forEach(b => {
-          initialExpanded[b.id] = !b.abandonne;
+          initialExpanded[b.id] = false;
         });
         setExpandedBiens(initialExpanded);
 
@@ -79,7 +79,7 @@ const BienPage = () => {
         // Fallback
         const initialExpanded = {};
         biens.forEach(b => {
-          initialExpanded[b.id] = !b.abandonne;
+          initialExpanded[b.id] = false;
         });
         setExpandedBiens(initialExpanded);
       });
